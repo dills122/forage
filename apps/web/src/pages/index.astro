@@ -1,0 +1,40 @@
+---
+import AppShell from "../layouts/AppShell.astro";
+import StatusPanel from "../components/StatusPanel.astro";
+
+const implementationItems = [
+  { label: "Auth", value: "GitHub App user authorization" },
+  { label: "Repository data", value: "Browser-local IndexedDB" },
+  { label: "Server storage", value: "Auth, session, settings, preferences only" },
+  { label: "Analysis", value: "Local browser worker" },
+];
+
+const milestoneItems = [
+  { label: "Current milestone", value: "Real app scaffold" },
+  { label: "Next milestone", value: "Move proven import flow into real boundaries" },
+  { label: "Reference", value: "apps/pre-mvp" },
+  { label: "Status", value: "Ready for implementation slice" },
+];
+---
+
+<AppShell title="Forage">
+  <main class="shell">
+    <section class="masthead">
+      <p class="eyebrow">Forage</p>
+      <h1>GitHub stars worth finding again.</h1>
+      <p class="lede">
+        The real app shell is ready. The next slice moves the proven GitHub import,
+        local storage, and worker analysis flow into this production-shaped Astro app.
+      </p>
+      <div class="actions">
+        <a href="/api/health" class="button">Worker Health</a>
+        <a href="/api/config" class="button secondary">Worker Config</a>
+      </div>
+    </section>
+
+    <section class="grid">
+      <StatusPanel title="Architecture" items={implementationItems} />
+      <StatusPanel title="Milestone" items={milestoneItems} />
+    </section>
+  </main>
+</AppShell>
