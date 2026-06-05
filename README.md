@@ -35,3 +35,22 @@ http://localhost:5173
 ```
 
 This app is intentionally small and dependency-free. It is not the final Astro/Cloudflare implementation.
+
+## AI Central Context
+
+This repo uses AI Central steering and local Codex skill links.
+
+Tracked files:
+
+- `AGENTS.md`
+- `.codex/steering/*.md`
+
+Ignored local links:
+
+- `.codex/skills/`
+
+Refresh local skill symlinks with:
+
+```sh
+npm run codex:links
+```

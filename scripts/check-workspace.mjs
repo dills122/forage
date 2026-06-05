@@ -4,6 +4,11 @@ import { join, resolve } from "node:path";
 
 const root = resolve(".");
 const expectedPaths = [
+  "AGENTS.md",
+  ".codex/steering/repository-steering.md",
+  ".codex/steering/javascript-esm-steering.md",
+  ".codex/steering/testing-quality-gates-steering.md",
+  ".codex/steering/frontend-design-steering.md",
   "apps/pre-mvp",
   "packages/shared/src/index.ts",
   "packages/core/src/index.ts",
@@ -13,6 +18,7 @@ const expectedPaths = [
   "docs/README.md",
   "docs/adr/0001-github-app-user-auth.md",
   ".github/workflows/check.yml",
+  "scripts/dev/setup-codex-links.mjs",
 ];
 
 const failures = [];
@@ -24,10 +30,20 @@ for (const path of expectedPaths) {
 }
 
 const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-for (const scriptName of ["check", "check:docs", "check:workspace", "check:pre-mvp"]) {
+for (const scriptName of [
+  "check",
+  "check:docs",
+  "check:scripts",
+  "check:workspace",
+  "check:pre-mvp",
+]) {
   if (!packageJson.scripts?.[scriptName]) {
     failures.push(`Missing package script: ${scriptName}`);
   }
+}
+
+if (!packageJson.scripts?.["codex:links"]) {
+  failures.push("Missing package script: codex:links");
 }
 
 if (failures.length > 0) {

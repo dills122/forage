@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "npm run check:pre-mvp && npm run check:docs && npm run check:workspace",
+    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:docs && npm run check:workspace",
     "check:docs": "node scripts/check-docs.mjs",
+    "check:scripts": "node --check scripts/check-docs.mjs && node --check scripts/check-workspace.mjs && node --check scripts/dev/setup-codex-links.mjs",
     "check:workspace": "node scripts/check-workspace.mjs",
+    "codex:links": "node scripts/dev/setup-codex-links.mjs",
     "dev:pre-mvp": "node apps/pre-mvp/server.mjs",
     "check:pre-mvp": "node --check apps/pre-mvp/server.mjs && node --check apps/pre-mvp/public/app.js && node --check apps/pre-mvp/public/db.js && node --check apps/pre-mvp/public/analysis.worker.js"
   },
