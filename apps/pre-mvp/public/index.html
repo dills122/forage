@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forage Pre-MVP Spike</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="masthead">
+        <div>
+          <p class="eyebrow">Forage</p>
+          <h1>Pre-MVP GitHub Import Spike</h1>
+        </div>
+        <div class="actions">
+          <a class="button" id="connectLink" href="/auth/github">Connect GitHub</a>
+          <button id="logoutButton" type="button">Logout</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Connection</h2>
+          <dl id="connectionStatus" class="status-list"></dl>
+        </article>
+
+        <article class="panel">
+          <h2>Import</h2>
+          <div class="button-row">
+            <button id="importButton" type="button">Import Stars</button>
+            <button id="analyzeButton" type="button">Run Analysis</button>
+            <button id="exportButton" type="button">Export JSON</button>
+            <button id="resetButton" type="button">Reset Local Data</button>
+          </div>
+          <p id="progressText" class="muted">No import has run yet.</p>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Verification</h2>
+          <ul id="verificationList" class="checklist"></ul>
+        </article>
+
+        <article class="panel">
+          <h2>Local Summary</h2>
+          <dl id="summaryList" class="status-list"></dl>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Observed GitHub Fields</h2>
+        <div id="fieldList" class="tag-list"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Sample Repositories</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Repository</th>
+                <th>Language</th>
+                <th>Stars</th>
+                <th>Starred</th>
+                <th>Categories</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody id="repoRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Latest Import Event</h2>
+        <pre id="eventOutput">{}</pre>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
