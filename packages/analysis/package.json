@@ -1,0 +1,12 @@
+{
+  "name": "@forage/analysis",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@forage/shared": "workspace:*"
+  }
+}
