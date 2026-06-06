@@ -1,0 +1,4 @@
+{
+  "*.{css,js,json,jsonc,mjs,ts}": "biome check --write --no-errors-on-unmatched",
+  "*.astro": "prettier --write"
+}

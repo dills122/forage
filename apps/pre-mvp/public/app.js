@@ -59,7 +59,10 @@ function render() {
   renderDefinitionList(els.summaryList, [
     ["Stored repos", state.repositories.length],
     ["Analyzed repos", state.analyzed.length],
-    ["Languages", new Set(state.repositories.map((repo) => repo.primary_language).filter(Boolean)).size],
+    [
+      "Languages",
+      new Set(state.repositories.map((repo) => repo.primary_language).filter(Boolean)).size,
+    ],
     ["Latest import", state.latestEvent?.status || "-"],
   ]);
 
@@ -73,8 +76,7 @@ function render() {
     "Browser worker analysis completed": state.verification.workerAnalysis,
   })
     .map(
-      ([label, passed]) =>
-        `<li class="${passed ? "pass" : "pending"}"><span>${label}</span></li>`,
+      ([label, passed]) => `<li class="${passed ? "pass" : "pending"}"><span>${label}</span></li>`,
     )
     .join("");
 
@@ -209,7 +211,9 @@ async function importStars() {
       event.repositories += repositories.length;
       event.rate_limits.push(payload.rateLimit);
       state.verification.starredEndpoint = true;
-      state.verification.starredAtPreserved ||= repositories.some((repo) => Boolean(repo.starred_at));
+      state.verification.starredAtPreserved ||= repositories.some((repo) =>
+        Boolean(repo.starred_at),
+      );
       state.verification.fieldsObserved = state.observedFields.size > 0;
 
       nextPage = payload.nextPage;

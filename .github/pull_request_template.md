@@ -4,8 +4,13 @@
 
 ## Verification
 
--
+- [ ] `npm run check`
 
-## Notes
+## Data And Privacy
+
+- [ ] No repository data is stored server-side
+- [ ] No secrets, tokens, or local `.dev.vars` values are committed
+
+## Notes / Risks
 
 -

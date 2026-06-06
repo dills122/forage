@@ -1,8 +1,8 @@
-import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { extname, join, normalize, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import { extname, join, normalize, resolve } from "node:path";
 
 async function loadDotEnv() {
   const envPath = resolve(".env");
@@ -40,8 +40,7 @@ const publicDir = resolve("apps/pre-mvp/public");
 const githubClientId = process.env.GITHUB_CLIENT_ID || "";
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET || "";
 const redirectUri =
-  process.env.GITHUB_REDIRECT_URI ||
-  `http://localhost:${port}/auth/github/callback`;
+  process.env.GITHUB_REDIRECT_URI || `http://localhost:${port}/auth/github/callback`;
 const githubApiVersion = process.env.GITHUB_API_VERSION || "2022-11-28";
 
 const sessions = new Map();
@@ -100,7 +99,7 @@ function getSession(req) {
   return sessions.get(sessionId) || null;
 }
 
-async function serveStatic(req, res, url) {
+async function serveStatic(_req, res, url) {
   const requested = url.pathname === "/" ? "/index.html" : url.pathname;
   const normalizedPath = normalize(decodeURIComponent(requested)).replace(/^(\.\.[/\\])+/, "");
   const filePath = resolve(join(publicDir, normalizedPath));
@@ -283,12 +282,7 @@ async function route(req, res) {
   if (url.pathname === "/api/logout" && req.method === "POST") {
     const cookies = parseCookies(req.headers.cookie);
     if (cookies.forage_session) sessions.delete(cookies.forage_session);
-    sendJson(
-      res,
-      200,
-      { ok: true },
-      { "Set-Cookie": cookie("forage_session", "", { maxAge: 0 }) },
-    );
+    sendJson(res, 200, { ok: true }, { "Set-Cookie": cookie("forage_session", "", { maxAge: 0 }) });
     return;
   }
 

@@ -6,7 +6,7 @@
   "packageManager": "pnpm@10.23.0",
   "scripts": {
     "build": "pnpm --recursive --if-present build",
-    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:docs && npm run check:workspace && npm run typecheck && npm run build",
+    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:docs && npm run check:workspace && npm run lint && npm run format:astro:check && npm run typecheck && npm run build",
     "check:docs": "node scripts/check-docs.mjs",
     "check:scripts": "node --check scripts/check-docs.mjs && node --check scripts/check-workspace.mjs && node --check scripts/dev/setup-codex-links.mjs",
     "check:workspace": "node scripts/check-workspace.mjs",
@@ -14,10 +14,22 @@
     "dev:web": "pnpm --filter @forage/web dev",
     "dev:worker": "pnpm --filter @forage/worker dev",
     "dev:pre-mvp": "node apps/pre-mvp/server.mjs",
+    "format": "npm run format:astro && biome format --write .",
+    "format:astro": "prettier --write \"**/*.astro\"",
+    "format:astro:check": "prettier --check \"**/*.astro\"",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "lint-staged": "lint-staged",
+    "prepare": "husky",
     "check:pre-mvp": "node --check apps/pre-mvp/server.mjs && node --check apps/pre-mvp/public/app.js && node --check apps/pre-mvp/public/db.js && node --check apps/pre-mvp/public/analysis.worker.js",
     "typecheck": "pnpm --recursive --if-present typecheck"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "prettier-plugin-astro": "^0.14.1",
     "typescript": "^5.9.3"
   },
   "engines": {

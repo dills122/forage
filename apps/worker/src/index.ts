@@ -1,4 +1,4 @@
-import { GitHubApiError, fetchStarredRepositoriesPage } from "@forage/github";
+import { fetchStarredRepositoriesPage, GitHubApiError } from "@forage/github";
 
 interface Env {
   GITHUB_CLIENT_ID?: string;
@@ -29,15 +29,11 @@ function route(request: Request, env: Env) {
   }
 
   if (url.pathname === "/health" || url.pathname === "/api/health") {
-    return json(
-      request,
-      env,
-      {
-        ok: true,
-        service: "forage-worker",
-        privacy_boundary: "no repository data stored server-side",
-      },
-    );
+    return json(request, env, {
+      ok: true,
+      service: "forage-worker",
+      privacy_boundary: "no repository data stored server-side",
+    });
   }
 
   if (url.pathname === "/api/config") {
@@ -144,7 +140,10 @@ async function getSessionResponse(request: Request, env: Env) {
   const response = await fetch("https://api.github.com/user", {
     headers: githubHeaders(session.accessToken, githubApiVersion(env)),
   });
-  const payload = (await response.json().catch(() => null)) as { login?: string; id?: number } | null;
+  const payload = (await response.json().catch(() => null)) as {
+    login?: string;
+    id?: number;
+  } | null;
 
   if (!response.ok) {
     return json(
@@ -320,19 +319,9 @@ function corsHeaders(request: Request, env: Env) {
   return headers;
 }
 
-function cookie(
-  request: Request,
-  name: string,
-  value: string,
-  options: { maxAge?: number } = {},
-) {
+function cookie(request: Request, name: string, value: string, options: { maxAge?: number } = {}) {
   const url = new URL(request.url);
-  const parts = [
-    `${name}=${encodeURIComponent(value)}`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Lax",
-  ];
+  const parts = [`${name}=${encodeURIComponent(value)}`, "Path=/", "HttpOnly", "SameSite=Lax"];
   if (url.protocol === "https:") parts.push("Secure");
   if (options.maxAge !== undefined) parts.push(`Max-Age=${options.maxAge}`);
   return parts.join("; ");
@@ -357,7 +346,10 @@ function parseCookies(header: string | null) {
 function createId() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 function redirectUri(request: Request, env: Env) {

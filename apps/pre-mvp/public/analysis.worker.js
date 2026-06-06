@@ -86,12 +86,7 @@ function scoreRepository(repo) {
 }
 
 function categorize(repo) {
-  const text = [
-    repo.full_name,
-    repo.description,
-    repo.primary_language,
-    ...(repo.topics || []),
-  ]
+  const text = [repo.full_name, repo.description, repo.primary_language, ...(repo.topics || [])]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

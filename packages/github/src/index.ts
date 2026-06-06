@@ -1,5 +1,4 @@
-import type { ForageRepository } from "@forage/shared";
-import type { GitHubRateLimitSnapshot } from "@forage/shared";
+import type { ForageRepository, GitHubRateLimitSnapshot } from "@forage/shared";
 
 export interface GitHubImportPlan {
   auth: "github-app-user";
@@ -95,9 +94,10 @@ export async function fetchStarredRepositoriesPage({
 
   const payload = await parseGitHubJson(response);
   if (!response.ok) {
-    const message = typeof payload === "object" && payload && "message" in payload
-      ? String(payload.message)
-      : `GitHub starred import failed with ${response.status}`;
+    const message =
+      typeof payload === "object" && payload && "message" in payload
+        ? String(payload.message)
+        : `GitHub starred import failed with ${response.status}`;
     throw new GitHubApiError(message, response.status, rateLimitFromHeaders(response.headers));
   }
 
