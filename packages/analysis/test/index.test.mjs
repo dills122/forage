@@ -81,3 +81,26 @@ test("penalizes archived stale repositories against active repositories", () => 
     staleArchived.maintenance.explanations.some((explanation) => explanation.signal === "archived"),
   );
 });
+
+test("handles missing timestamps and disabled repositories", () => {
+  const analysis = analyzeRepository(
+    createRepository({
+      disabled: true,
+      created_at: "",
+      updated_at: "",
+      pushed_at: null,
+      stars: 0,
+      forks: 0,
+      open_issues: 0,
+    }),
+    new Date("2026-06-05T00:00:00.000Z"),
+  );
+
+  assert.equal(analysis.scores.activity.value, 0);
+  assert.equal(analysis.scores.freshness.explanations[0].message, "No update timestamp available.");
+  assert.ok(
+    analysis.scores.maintenance.explanations.some(
+      (explanation) => explanation.signal === "disabled",
+    ),
+  );
+});

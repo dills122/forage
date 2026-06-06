@@ -58,6 +58,8 @@ for (const scriptName of [
   "lint:fix",
   "lint-staged",
   "prepare",
+  "test",
+  "test:coverage",
   "analysis:review",
   "check:analysis",
 ]) {
