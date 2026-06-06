@@ -1,12 +1,22 @@
-import { analyzeRepository } from "@forage/analysis";
-import type { ForageRepository } from "@forage/shared";
+import { analysisVersion, analyzeRepositories, analyzeRepository } from "@forage/analysis";
+import {
+  createForageExport,
+  serializeForageExportJson,
+  serializeRepositoryAnalysisCsv,
+} from "@forage/reporting";
+import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
 import type { SessionResponse } from "../lib/api";
 import { createImportEvent, WorkerApi } from "../lib/api";
 import {
+  getAllAnalysisResults,
   getAllRepositories,
   getImportEvents,
+  getLocalLibraryProfile,
+  type LocalLibraryProfile,
   resetLocalData,
+  saveAnalysisResults,
   saveImportEvent,
+  saveLocalLibraryProfile,
   saveRepositories,
 } from "../lib/db";
 
@@ -18,10 +28,24 @@ interface AppState {
   repositoryCount: number;
   latestImport: string;
   progress: string;
+  localLibraryStatus: string;
   authenticated: boolean;
+  sessionUser: SessionResponse["user"] | null;
+  localLibraryProfile: LocalLibraryProfile | null;
+  localLibraryOwner: string;
+  localLibraryConflict: boolean;
   repositories: ForageRepository[];
+  analysisByRepositoryId: Map<number, RepositoryAnalysis>;
   topLanguage: string;
+  searchQuery: string;
+  languageFilter: string;
+  categoryFilter: string;
+  sortMode: "starred_at_desc" | "score_desc" | "stars_desc" | "name_asc";
 }
+
+type Theme = "light" | "dark";
+
+const themeStorageKey = "forage-theme";
 
 const state: AppState = {
   workerOrigin: "",
@@ -31,9 +55,19 @@ const state: AppState = {
   repositoryCount: 0,
   latestImport: "-",
   progress: "Ready.",
+  localLibraryStatus: "No repository data stored locally.",
   authenticated: false,
+  sessionUser: null,
+  localLibraryProfile: null,
+  localLibraryOwner: "-",
+  localLibraryConflict: false,
   repositories: [],
+  analysisByRepositoryId: new Map(),
   topLanguage: "-",
+  searchQuery: "",
+  languageFilter: "",
+  categoryFilter: "",
+  sortMode: "starred_at_desc",
 };
 
 let api: WorkerApi;
@@ -46,6 +80,7 @@ function startForageApp() {
   api = new WorkerApi(state.workerOrigin);
 
   bindEvents();
+  initializeThemeToggle();
   void refreshState();
 }
 
@@ -54,34 +89,76 @@ function bindEvents() {
   getElement<HTMLButtonElement>("logout-button").addEventListener("click", logout);
   getElement<HTMLButtonElement>("import-button").addEventListener("click", importStars);
   getElement<HTMLButtonElement>("reset-button").addEventListener("click", resetData);
-  getElement<HTMLButtonElement>("export-button").addEventListener("click", exportJson);
+  getElement<HTMLButtonElement>("export-button").addEventListener("click", () =>
+    exportData("json"),
+  );
+  getElement<HTMLButtonElement>("export-csv-button").addEventListener("click", () =>
+    exportData("csv"),
+  );
+  getElement<HTMLInputElement>("library-search").addEventListener("input", updateLibrarySearch);
+  getElement<HTMLSelectElement>("language-filter").addEventListener("change", updateLanguageFilter);
+  getElement<HTMLSelectElement>("category-filter").addEventListener("change", updateCategoryFilter);
+  getElement<HTMLSelectElement>("library-sort").addEventListener("change", updateLibrarySort);
+  getElement<HTMLButtonElement>("theme-toggle").addEventListener("click", toggleTheme);
+}
+
+function initializeThemeToggle() {
+  applyTheme(getCurrentTheme());
+}
+
+function toggleTheme() {
+  const nextTheme: Theme = getCurrentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem(themeStorageKey, nextTheme);
+  applyTheme(nextTheme);
+}
+
+function getCurrentTheme(): Theme {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme;
+  const isDark = theme === "dark";
+  const toggle = getElement<HTMLButtonElement>("theme-toggle");
+  toggle.setAttribute("aria-pressed", String(isDark));
+  toggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  setText("theme-toggle-label", isDark ? "Dark" : "Light");
 }
 
 async function refreshState() {
   try {
-    const [config, session, repositories, events] = await Promise.all([
-      api.getConfig(),
-      api.getSession().catch(
-        (error: Error): SessionResponse => ({
-          authenticated: false,
-          error: error.message,
-        }),
-      ),
-      getAllRepositories(),
-      getImportEvents(),
-    ]);
+    const [config, session, repositories, events, analysisResults, localLibraryProfile] =
+      await Promise.all([
+        api.getConfig(),
+        api.getSession().catch(
+          (error: Error): SessionResponse => ({
+            authenticated: false,
+            error: error.message,
+          }),
+        ),
+        getAllRepositories(),
+        getImportEvents(),
+        getAllAnalysisResults(),
+        getLocalLibraryProfile(),
+      ]);
 
     state.configStatus =
       config.has_github_client_id && config.has_github_client_secret
         ? "Ready"
         : "Missing GitHub env";
     state.authenticated = session.authenticated;
+    state.sessionUser = session.user ?? null;
     state.sessionStatus = session.authenticated ? "Authenticated" : session.error || "Disconnected";
-    state.user = session.user?.login ?? "-";
     state.repositoryCount = repositories.length;
     state.latestImport = events[0] ? `${events[0].status} (${events[0].repositories})` : "-";
     state.repositories = sortRepositories(repositories);
+    state.analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
     state.topLanguage = getTopLanguage(repositories);
+    state.localLibraryProfile = localLibraryProfile;
+    state.localLibraryOwner = getLocalLibraryOwner(localLibraryProfile, repositories.length);
+    state.localLibraryConflict = hasLocalLibraryConflict(localLibraryProfile, session.user);
+    state.user = getUserDisplay(session, localLibraryProfile, repositories.length);
+    state.localLibraryStatus = getLocalLibraryStatus(repositories.length, session.authenticated);
   } catch (error) {
     state.configStatus = error instanceof Error ? error.message : "Worker unavailable";
     state.sessionStatus = "Unavailable";
@@ -97,6 +174,12 @@ async function logout() {
 }
 
 async function importStars() {
+  if (state.localLibraryConflict) {
+    state.progress = "This browser already has a local library for another GitHub account.";
+    render();
+    return;
+  }
+
   const event = createImportEvent();
   const fieldNames = new Set<string>();
 
@@ -109,6 +192,7 @@ async function importStars() {
 
       const result = await api.getStarredPage(page);
       await saveRepositories(result.repositories);
+      await saveAnalysisResults(analyzeRepositories(result.repositories));
 
       event.pages += 1;
       event.repositories += result.repositories.length;
@@ -120,6 +204,12 @@ async function importStars() {
 
     event.status = "completed";
     event.completed_at = new Date().toISOString();
+    await saveLocalLibraryProfile({
+      github_login: state.sessionUser?.login ?? null,
+      github_user_id: state.sessionUser?.id ?? null,
+      repository_count: event.repositories,
+      updated_at: event.completed_at,
+    });
     state.progress = `Imported ${event.repositories} repositories across ${event.pages} page(s).`;
   } catch (error) {
     event.status = "failed";
@@ -139,22 +229,66 @@ async function resetData() {
   await refreshState();
 }
 
-async function exportJson() {
-  const [repositories, events] = await Promise.all([getAllRepositories(), getImportEvents()]);
-  const payload = {
-    exported_at: new Date().toISOString(),
+async function exportData(format: "json" | "csv") {
+  const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
+    getAllRepositories(),
+    getImportEvents(),
+    getAllAnalysisResults(),
+    getLocalLibraryProfile(),
+  ]);
+  const analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
+  const payload = createForageExport({
     repositories,
+    analysis_results: repositories.map(
+      (repository) =>
+        analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository),
+    ),
     latest_import_event: events[0] ?? null,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
+    local_library_profile: localLibraryProfile,
+  });
+  const isJson = format === "json";
+  const contents = isJson
+    ? serializeForageExportJson(payload)
+    : serializeRepositoryAnalysisCsv(payload);
+  const mimeType = isJson ? "application/json" : "text/csv";
+  const extension = isJson ? "json" : "csv";
+  downloadText(
+    contents,
+    mimeType,
+    `forage-export-${new Date().toISOString().slice(0, 10)}.${extension}`,
+  );
+}
+
+function downloadText(contents: string, mimeType: string, filename: string) {
+  const blob = new Blob([contents], {
+    type: mimeType,
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `forage-export-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function updateLibrarySearch(event: Event) {
+  state.searchQuery = (event.target as HTMLInputElement).value;
+  renderRepositories();
+}
+
+function updateLanguageFilter(event: Event) {
+  state.languageFilter = (event.target as HTMLSelectElement).value;
+  renderRepositories();
+}
+
+function updateCategoryFilter(event: Event) {
+  state.categoryFilter = (event.target as HTMLSelectElement).value;
+  renderRepositories();
+}
+
+function updateLibrarySort(event: Event) {
+  state.sortMode = (event.target as HTMLSelectElement).value as AppState["sortMode"];
+  renderRepositories();
 }
 
 function render() {
@@ -163,34 +297,55 @@ function render() {
   setText("session-status", state.sessionStatus);
   setText("session-badge", state.authenticated ? "Authenticated" : state.sessionStatus);
   setText("github-user", state.user);
+  setText("local-owner", state.localLibraryOwner);
   setText("repository-count", String(state.repositoryCount));
   setText("top-language", state.topLanguage);
   setText("latest-import", state.latestImport);
   setText("progress-text", state.progress);
+  setText("repository-storage-status", state.localLibraryStatus);
+  setText("local-library-notice-title", getLocalLibraryNoticeTitle());
+  setText("local-library-notice-body", getLocalLibraryNoticeBody());
   setText(
     "library-summary",
     state.repositoryCount > 0
-      ? `${Math.min(state.repositoryCount, 8)} shown`
+      ? `${Math.min(getFilteredRepositories().length, 24)} shown`
       : "No repositories stored",
   );
 
   getElement("connect-link").toggleAttribute("hidden", state.authenticated);
   getElement("logout-button").toggleAttribute("hidden", !state.authenticated);
-  getElement<HTMLButtonElement>("import-button").disabled = !state.authenticated;
+  getElement<HTMLButtonElement>("import-button").disabled =
+    !state.authenticated || state.localLibraryConflict;
   getElement<HTMLButtonElement>("export-button").disabled = state.repositoryCount === 0;
+  getElement<HTMLButtonElement>("export-csv-button").disabled = state.repositoryCount === 0;
   getElement<HTMLButtonElement>("reset-button").disabled = state.repositoryCount === 0;
+  getElement("local-library-notice").toggleAttribute("hidden", state.repositoryCount === 0);
 
   const sessionBadge = getElement("session-badge");
   sessionBadge.className = `status-badge ${state.authenticated ? "success" : "neutral"}`;
+  getElement("github-user").classList.toggle("muted-value", !state.authenticated);
+  getElement("local-library-notice").classList.toggle("warning", state.localLibraryConflict);
+  renderFilterOptions();
   renderRepositories();
 }
 
 function renderRepositories() {
   const list = getElement("repo-list");
   const empty = getElement("library-empty");
-  const repositories = state.repositories.slice(0, 8);
+  const filteredRepositories = getFilteredRepositories();
+  const repositories = filteredRepositories.slice(0, 24);
 
-  empty.toggleAttribute("hidden", repositories.length > 0);
+  setText(
+    "library-summary",
+    state.repositoryCount > 0
+      ? `${repositories.length} shown of ${filteredRepositories.length} matched`
+      : "No repositories stored",
+  );
+  empty.toggleAttribute("hidden", state.repositoryCount > 0);
+  empty.textContent =
+    state.repositoryCount === 0
+      ? "Connect GitHub and import stars to build the local library."
+      : "No repositories match the current filters.";
   list.replaceChildren(...repositories.map(createRepositoryRow));
 }
 
@@ -225,7 +380,7 @@ function createRepositoryRow(repository: ForageRepository) {
 
   const meta = document.createElement("div");
   meta.className = "repo-meta";
-  const analysis = analyzeRepository(repository);
+  const analysis = getRepositoryAnalysis(repository);
   meta.append(
     createMetaValue(String(analysis.scores.overall.value), "Score"),
     createMetaValue(repository.primary_language || "Unknown", "Language"),
@@ -264,6 +419,86 @@ function sortRepositories(repositories: ForageRepository[]) {
   return [...repositories].sort((left, right) => right.starred_at.localeCompare(left.starred_at));
 }
 
+function getFilteredRepositories() {
+  const query = state.searchQuery.trim().toLowerCase();
+  return sortVisibleRepositories(
+    state.repositories.filter((repository) => {
+      const analysis = getRepositoryAnalysis(repository);
+      const language = repository.primary_language || "Unknown";
+      const categoryLabels = analysis.categories.map((category) => category.label);
+      const searchableText = [
+        repository.full_name,
+        repository.description ?? "",
+        language,
+        ...repository.topics,
+        ...categoryLabels,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        (!query || searchableText.includes(query)) &&
+        (!state.languageFilter || language === state.languageFilter) &&
+        (!state.categoryFilter || categoryLabels.includes(state.categoryFilter))
+      );
+    }),
+  );
+}
+
+function sortVisibleRepositories(repositories: ForageRepository[]) {
+  return [...repositories].sort((left, right) => {
+    if (state.sortMode === "score_desc") {
+      return (
+        getRepositoryAnalysis(right).scores.overall.value -
+        getRepositoryAnalysis(left).scores.overall.value
+      );
+    }
+    if (state.sortMode === "stars_desc") return right.stars - left.stars;
+    if (state.sortMode === "name_asc") return left.full_name.localeCompare(right.full_name);
+    return right.starred_at.localeCompare(left.starred_at);
+  });
+}
+
+function renderFilterOptions() {
+  const languages = [
+    ...new Set(state.repositories.map((repo) => repo.primary_language || "Unknown")),
+  ].sort();
+  const categories = [
+    ...new Set(
+      state.repositories.flatMap((repository) =>
+        getRepositoryAnalysis(repository).categories.map((category) => category.label),
+      ),
+    ),
+  ].sort();
+
+  updateSelectOptions(getElement<HTMLSelectElement>("language-filter"), "All languages", languages);
+  updateSelectOptions(
+    getElement<HTMLSelectElement>("category-filter"),
+    "All categories",
+    categories,
+  );
+}
+
+function updateSelectOptions(select: HTMLSelectElement, defaultLabel: string, values: string[]) {
+  const currentValue = select.value;
+  select.replaceChildren(
+    createOption("", defaultLabel),
+    ...values.map((value) => createOption(value, value)),
+  );
+  select.value = values.includes(currentValue) ? currentValue : "";
+}
+
+function createOption(value: string, label: string) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
+function getRepositoryAnalysis(repository: ForageRepository) {
+  return state.analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
+}
+
 function getTopLanguage(repositories: ForageRepository[]) {
   const counts = new Map<string, number>();
   for (const repository of repositories) {
@@ -274,6 +509,64 @@ function getTopLanguage(repositories: ForageRepository[]) {
   const [language, count] =
     [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
   return language && count ? `${language} (${count})` : "-";
+}
+
+function createCurrentAnalysisMap(results: RepositoryAnalysis[]) {
+  return new Map(
+    results
+      .filter((result) => result.analysis_version === analysisVersion)
+      .map((result) => [result.repository_id, result]),
+  );
+}
+
+function getLocalLibraryStatus(repositoryCount: number, authenticated: boolean) {
+  if (repositoryCount === 0) return "No repository data stored locally.";
+  if (state.localLibraryConflict) {
+    return `${repositoryCount} repositories stored locally for ${state.localLibraryOwner}; current GitHub session is ${state.sessionUser?.login}.`;
+  }
+  if (authenticated) return `${repositoryCount} repositories stored locally and ready to refresh.`;
+  return `${repositoryCount} repositories stored locally; GitHub is disconnected.`;
+}
+
+function getLocalLibraryOwner(profile: LocalLibraryProfile | null, repositoryCount: number) {
+  if (repositoryCount === 0) return "-";
+  return profile?.github_login ? profile.github_login : "Unknown local owner";
+}
+
+function getUserDisplay(
+  session: SessionResponse,
+  profile: LocalLibraryProfile | null,
+  repositoryCount: number,
+) {
+  if (session.authenticated) return session.user?.login ?? "-";
+  if (repositoryCount > 0 && profile?.github_login)
+    return `${profile.github_login} (not connected)`;
+  if (repositoryCount > 0) return "Not connected";
+  return "-";
+}
+
+function hasLocalLibraryConflict(
+  profile: LocalLibraryProfile | null,
+  sessionUser: SessionResponse["user"] | undefined,
+) {
+  if (!profile?.github_login || !sessionUser?.login) return false;
+  return profile.github_login.toLowerCase() !== sessionUser.login.toLowerCase();
+}
+
+function getLocalLibraryNoticeTitle() {
+  if (state.localLibraryConflict) return "Different GitHub account connected";
+  if (state.authenticated) return "Local library synced to this browser";
+  return "Local library available";
+}
+
+function getLocalLibraryNoticeBody() {
+  if (state.localLibraryConflict) {
+    return `This browser has local data for ${state.localLibraryOwner}, but the current GitHub session is ${state.sessionUser?.login}. Export or reset local data before importing another account.`;
+  }
+  if (state.authenticated) {
+    return `This browser has local data for ${state.localLibraryOwner}. Refresh imports when you want to update it.`;
+  }
+  return `This browser has local data for ${state.localLibraryOwner}. Connect GitHub when you want to refresh imports.`;
 }
 
 function formatDate(value: string) {

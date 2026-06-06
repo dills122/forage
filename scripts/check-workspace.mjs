@@ -31,6 +31,8 @@ const expectedPaths = [
   ".prettierignore",
   ".prettierrc.json",
   "biome.json",
+  "scripts/analysis/review-export.ts",
+  "scripts/analysis/fixtures/forage-export.sample.json",
   "scripts/dev/setup-codex-links.mjs",
 ];
 
@@ -56,6 +58,8 @@ for (const scriptName of [
   "lint:fix",
   "lint-staged",
   "prepare",
+  "analysis:review",
+  "check:analysis",
 ]) {
   if (!packageJson.scripts?.[scriptName]) {
     failures.push(`Missing package script: ${scriptName}`);
@@ -99,6 +103,7 @@ const expectedDevDependencies = [
   "prettier",
   "prettier-plugin-astro",
   "typescript",
+  "tsx",
 ];
 
 for (const dependencyName of expectedDevDependencies) {

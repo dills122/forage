@@ -5,9 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@10.23.0",
   "scripts": {
+    "analysis:review": "node --import tsx scripts/analysis/review-export.ts",
     "build": "pnpm --recursive --if-present build",
-    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:docs && npm run check:workspace && npm run lint && npm run format:astro:check && npm run typecheck && npm run build",
+    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:analysis && npm run check:reporting && npm run check:docs && npm run check:workspace && npm run lint && npm run format:astro:check && npm run typecheck && npm run build",
+    "check:analysis": "pnpm analysis:review scripts/analysis/fixtures/forage-export.sample.json > /dev/null && pnpm --filter @forage/analysis test",
     "check:docs": "node scripts/check-docs.mjs",
+    "check:reporting": "pnpm --filter @forage/reporting test",
     "check:scripts": "node --check scripts/check-docs.mjs && node --check scripts/check-workspace.mjs && node --check scripts/dev/setup-codex-links.mjs",
     "check:workspace": "node scripts/check-workspace.mjs",
     "codex:links": "node scripts/dev/setup-codex-links.mjs",
@@ -30,6 +33,7 @@
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "prettier-plugin-astro": "^0.14.1",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   },
   "engines": {

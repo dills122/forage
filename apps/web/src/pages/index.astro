@@ -12,6 +12,18 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
         <h1>Starred repos, ready to sort through.</h1>
       </div>
       <div class="topbar-actions">
+        <button
+          id="theme-toggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Switch to dark mode"
+          aria-pressed="false"
+        >
+          <span class="theme-toggle-track" aria-hidden="true">
+            <span class="theme-toggle-thumb"></span>
+          </span>
+          <span id="theme-toggle-label">Light</span>
+        </button>
         <span id="session-badge" class="status-badge neutral">Checking session</span>
         <a id="connect-link" href={workerOrigin + "/auth/github"} class="button">Connect GitHub</a>
         <button id="logout-button" class="button secondary" type="button" hidden>Logout</button>
@@ -37,6 +49,14 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
       </article>
     </section>
 
+    <section id="local-library-notice" class="notice" hidden>
+      <strong id="local-library-notice-title">Local library available</strong>
+      <span id="local-library-notice-body">
+        These repositories are stored in this browser. Connect GitHub when you want to refresh
+        imports.
+      </span>
+    </section>
+
     <section class="workspace-grid">
       <section class="panel import-panel">
         <div class="panel-heading">
@@ -51,6 +71,9 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
           <button id="import-button" class="button" type="button" disabled>Import Stars</button>
           <button id="export-button" class="button secondary" type="button" disabled
             >Export JSON</button
+          >
+          <button id="export-csv-button" class="button secondary" type="button" disabled
+            >Export CSV</button
           >
           <button id="reset-button" class="button danger" type="button" disabled
             >Reset Local Data</button
@@ -70,12 +93,14 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
           <dd id="worker-origin">{workerOrigin}</dd>
           <dt>Session</dt>
           <dd id="session-status">Checking</dd>
+          <dt>Local owner</dt>
+          <dd id="local-owner">Checking</dd>
         </dl>
         <details class="diagnostics">
           <summary>Diagnostics</summary>
           <dl class="detail-list">
             <dt>Repository data</dt>
-            <dd>Browser-local IndexedDB</dd>
+            <dd id="repository-storage-status">Browser-local IndexedDB</dd>
             <dt>Server storage</dt>
             <dd>Auth, session, settings, preferences only</dd>
             <dt>Observed fields</dt>
@@ -92,6 +117,33 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
           <h2>Recent stars</h2>
         </div>
         <span id="library-summary" class="status-pill">No repositories stored</span>
+      </div>
+      <div class="library-controls" aria-label="Library controls">
+        <label>
+          <span>Search</span>
+          <input id="library-search" type="search" placeholder="Repo, topic, description" />
+        </label>
+        <label>
+          <span>Language</span>
+          <select id="language-filter">
+            <option value="">All languages</option>
+          </select>
+        </label>
+        <label>
+          <span>Category</span>
+          <select id="category-filter">
+            <option value="">All categories</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="library-sort">
+            <option value="starred_at_desc">Recently starred</option>
+            <option value="score_desc">Highest score</option>
+            <option value="stars_desc">Most stars</option>
+            <option value="name_asc">Name</option>
+          </select>
+        </label>
       </div>
       <div id="library-empty" class="empty-state">
         Connect GitHub and import stars to build the local library.

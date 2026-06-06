@@ -1,19 +1,16 @@
 # Storage Schema
 
 Status:
-Discovery Required
+Initial browser schema implemented
 
 Primary storage:
 IndexedDB in the user's browser.
 
 Local data classes:
 - Repository metadata
-- Import runs
 - Import events
-- Category config
-- Category assignments
-- Score results
-- Insight results
+- Versioned repository analysis results
+- Local library profile metadata
 - Export metadata
 - Local app preferences that do not need server persistence
 
@@ -39,9 +36,27 @@ Backup and restore:
 JSON export should be the first supported full-state backup format. Restore should validate schema version, show incompatible version errors clearly, and avoid silently merging incompatible data.
 
 Open implementation decisions:
-- Exact IndexedDB store names
 - Indexes needed for search/filter/sort
 - Data retention policy
 - Browser quota warning behavior
 - Multi-tab locking behavior
-- Whether generated exports are stored locally or generated on demand
+- Restore/import from a previous Forage export
+
+Current IndexedDB stores:
+- `repositories`
+  - Key: `github_id`
+  - Indexes: `full_name`, `primary_language`, `starred_at`
+- `importEvents`
+  - Key: `id`
+- `analysisResults`
+  - Key: `repository_id`
+  - Indexes: `repository_full_name`, `analysis_version`, `score_version`
+- `metadata`
+  - Key: `id`
+  - Current record: `local-library-profile`
+
+Current export behavior:
+- Exports are generated on demand.
+- JSON exports include repositories, latest import event, local library profile, and current analysis results.
+- CSV exports include repository, category, and score fields for spreadsheet review.
+- If stored analysis is missing for a repository, export calculates analysis with the current analysis version.
