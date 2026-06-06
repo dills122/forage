@@ -1,13 +1,15 @@
-import { analyzeRepository } from "@forage/analysis";
-import type { ForageRepository } from "@forage/shared";
+import { analysisVersion, analyzeRepositories, analyzeRepository } from "@forage/analysis";
+import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
 import type { SessionResponse } from "../lib/api";
 import { createImportEvent, WorkerApi } from "../lib/api";
 import {
+  getAllAnalysisResults,
   getAllRepositories,
   getImportEvents,
   getLocalLibraryProfile,
   type LocalLibraryProfile,
   resetLocalData,
+  saveAnalysisResults,
   saveImportEvent,
   saveLocalLibraryProfile,
   saveRepositories,
@@ -28,6 +30,7 @@ interface AppState {
   localLibraryOwner: string;
   localLibraryConflict: boolean;
   repositories: ForageRepository[];
+  analysisByRepositoryId: Map<number, RepositoryAnalysis>;
   topLanguage: string;
 }
 
@@ -46,6 +49,7 @@ const state: AppState = {
   localLibraryOwner: "-",
   localLibraryConflict: false,
   repositories: [],
+  analysisByRepositoryId: new Map(),
   topLanguage: "-",
 };
 
@@ -72,18 +76,20 @@ function bindEvents() {
 
 async function refreshState() {
   try {
-    const [config, session, repositories, events, localLibraryProfile] = await Promise.all([
-      api.getConfig(),
-      api.getSession().catch(
-        (error: Error): SessionResponse => ({
-          authenticated: false,
-          error: error.message,
-        }),
-      ),
-      getAllRepositories(),
-      getImportEvents(),
-      getLocalLibraryProfile(),
-    ]);
+    const [config, session, repositories, events, analysisResults, localLibraryProfile] =
+      await Promise.all([
+        api.getConfig(),
+        api.getSession().catch(
+          (error: Error): SessionResponse => ({
+            authenticated: false,
+            error: error.message,
+          }),
+        ),
+        getAllRepositories(),
+        getImportEvents(),
+        getAllAnalysisResults(),
+        getLocalLibraryProfile(),
+      ]);
 
     state.configStatus =
       config.has_github_client_id && config.has_github_client_secret
@@ -95,6 +101,7 @@ async function refreshState() {
     state.repositoryCount = repositories.length;
     state.latestImport = events[0] ? `${events[0].status} (${events[0].repositories})` : "-";
     state.repositories = sortRepositories(repositories);
+    state.analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
     state.topLanguage = getTopLanguage(repositories);
     state.localLibraryProfile = localLibraryProfile;
     state.localLibraryOwner = getLocalLibraryOwner(localLibraryProfile, repositories.length);
@@ -134,6 +141,7 @@ async function importStars() {
 
       const result = await api.getStarredPage(page);
       await saveRepositories(result.repositories);
+      await saveAnalysisResults(analyzeRepositories(result.repositories));
 
       event.pages += 1;
       event.repositories += result.repositories.length;
@@ -171,14 +179,20 @@ async function resetData() {
 }
 
 async function exportJson() {
-  const [repositories, events, localLibraryProfile] = await Promise.all([
+  const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
     getAllRepositories(),
     getImportEvents(),
+    getAllAnalysisResults(),
     getLocalLibraryProfile(),
   ]);
+  const analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
   const payload = {
     exported_at: new Date().toISOString(),
     repositories,
+    analysis_results: repositories.map(
+      (repository) =>
+        analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository),
+    ),
     latest_import_event: events[0] ?? null,
     local_library_profile: localLibraryProfile,
   };
@@ -269,7 +283,8 @@ function createRepositoryRow(repository: ForageRepository) {
 
   const meta = document.createElement("div");
   meta.className = "repo-meta";
-  const analysis = analyzeRepository(repository);
+  const analysis =
+    state.analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
   meta.append(
     createMetaValue(String(analysis.scores.overall.value), "Score"),
     createMetaValue(repository.primary_language || "Unknown", "Language"),
@@ -318,6 +333,14 @@ function getTopLanguage(repositories: ForageRepository[]) {
   const [language, count] =
     [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
   return language && count ? `${language} (${count})` : "-";
+}
+
+function createCurrentAnalysisMap(results: RepositoryAnalysis[]) {
+  return new Map(
+    results
+      .filter((result) => result.analysis_version === analysisVersion)
+      .map((result) => [result.repository_id, result]),
+  );
 }
 
 function getLocalLibraryStatus(repositoryCount: number, authenticated: boolean) {

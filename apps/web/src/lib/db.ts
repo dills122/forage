@@ -1,7 +1,7 @@
-import type { ForageRepository, ImportEvent } from "@forage/shared";
+import type { ForageRepository, ImportEvent, RepositoryAnalysis } from "@forage/shared";
 
 const dbName = "forage";
-const dbVersion = 2;
+const dbVersion = 3;
 const localLibraryProfileKey = "local-library-profile";
 
 export interface LocalLibraryProfile {
@@ -49,6 +49,26 @@ export async function getImportEvents() {
   return events.sort((left, right) => right.started_at.localeCompare(left.started_at));
 }
 
+export async function saveAnalysisResults(results: RepositoryAnalysis[]) {
+  const db = await openDb();
+  const tx = db.transaction("analysisResults", "readwrite");
+  const store = tx.objectStore("analysisResults");
+  for (const result of results) {
+    store.put(result);
+  }
+  await txDone(tx);
+  db.close();
+}
+
+export async function getAllAnalysisResults() {
+  const db = await openDb();
+  const tx = db.transaction("analysisResults", "readonly");
+  const request = tx.objectStore("analysisResults").getAll();
+  const results = await requestDone<RepositoryAnalysis[]>(request);
+  db.close();
+  return results;
+}
+
 export async function saveLocalLibraryProfile(profile: Omit<LocalLibraryProfile, "id">) {
   const db = await openDb();
   const tx = db.transaction("metadata", "readwrite");
@@ -68,9 +88,13 @@ export async function getLocalLibraryProfile() {
 
 export async function resetLocalData() {
   const db = await openDb();
-  const tx = db.transaction(["repositories", "importEvents", "metadata"], "readwrite");
+  const tx = db.transaction(
+    ["repositories", "importEvents", "analysisResults", "metadata"],
+    "readwrite",
+  );
   tx.objectStore("repositories").clear();
   tx.objectStore("importEvents").clear();
+  tx.objectStore("analysisResults").clear();
   tx.objectStore("metadata").clear();
   await txDone(tx);
   db.close();
@@ -96,6 +120,13 @@ function openDb() {
 
       if (!db.objectStoreNames.contains("metadata")) {
         db.createObjectStore("metadata", { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains("analysisResults")) {
+        const store = db.createObjectStore("analysisResults", { keyPath: "repository_id" });
+        store.createIndex("repository_full_name", "repository_full_name", { unique: true });
+        store.createIndex("analysis_version", "analysis_version", { unique: false });
+        store.createIndex("score_version", "scores.version", { unique: false });
       }
     };
 
