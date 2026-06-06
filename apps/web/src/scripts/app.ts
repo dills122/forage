@@ -1,10 +1,11 @@
-import { analysisVersion, analyzeRepositories, analyzeRepository } from "@forage/analysis";
+import { analysisVersion, analyzeRepository } from "@forage/analysis";
 import {
   createForageExport,
   serializeForageExportJson,
   serializeRepositoryAnalysisCsv,
 } from "@forage/reporting";
 import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
+import { analyzeRepositoriesInWorker } from "../lib/analysis-worker";
 import type { SessionResponse } from "../lib/api";
 import { createImportEvent, WorkerApi } from "../lib/api";
 import {
@@ -192,7 +193,9 @@ async function importStars() {
 
       const result = await api.getStarredPage(page);
       await saveRepositories(result.repositories);
-      await saveAnalysisResults(analyzeRepositories(result.repositories));
+      state.progress = `Analyzing page ${page} in browser worker...`;
+      render();
+      await saveAnalysisResults(await analyzeRepositoriesInWorker(result.repositories));
 
       event.pages += 1;
       event.repositories += result.repositories.length;
