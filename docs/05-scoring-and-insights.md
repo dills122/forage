@@ -2,7 +2,7 @@
 # Scoring & Insights
 
 Status:
-Needs dedicated design pass
+First v0.1 foundational scoring model drafted
 
 Purpose:
 Fun, explainable ranking system.
@@ -51,12 +51,27 @@ Future personalized score candidates:
 - Framework Affinity
 
 Formula requirements:
-- Define numeric range, likely 0-100.
-- Define weights for each signal.
-- Define caps and normalization rules so very popular repositories do not dominate every ranking.
-- Define how archived, disabled, stale, and recently revived repositories affect scores.
+- Validate numeric ranges against real imports.
+- Tune weights for each signal.
+- Tune caps and normalization rules so very popular repositories do not dominate every ranking.
+- Tune how archived, disabled, stale, and recently revived repositories affect scores.
 - Define how score version changes affect existing local analysis.
 - Define how user-agnostic scores feed, but do not mutate, future personalized match scoring.
+
+Current v0.1 scoring behavior:
+- Score version: `foundational-v0.1.0`.
+- Range: 0-100 for every score.
+- Overall score is a weighted blend:
+  - Activity: 30%
+  - Popularity: 25%
+  - Freshness: 20%
+  - Maintenance: 25%
+- Popularity uses logarithmic star and fork normalization so large repositories do not fully dominate.
+- Activity, freshness, and maintenance use age buckets from GitHub timestamps.
+- Archived and disabled repositories receive maintenance penalties.
+- Metadata Quality and Topic Density are calculated as secondary scores but do not affect the overall score yet.
+- Each score includes at least one explanation.
+- Labels are derived from score and metadata thresholds and include versioned reasons.
 
 Example Labels:
 

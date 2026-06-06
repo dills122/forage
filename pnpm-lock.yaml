@@ -14,6 +14,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@forage/analysis':
+        specifier: workspace:*
+        version: link:../../packages/analysis
       '@forage/shared':
         specifier: workspace:*
         version: link:../../packages/shared

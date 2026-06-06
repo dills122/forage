@@ -10,6 +10,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
+    "@forage/analysis": "workspace:*",
     "@forage/shared": "workspace:*",
     "astro": "^6.4.4"
   },

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
+      "@forage/analysis": ["../../packages/analysis/src/index.ts"],
       "@forage/shared": ["../../packages/shared/src/index.ts"]
     }
   }

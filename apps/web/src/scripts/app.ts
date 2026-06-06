@@ -1,5 +1,7 @@
-import { WorkerApi, createImportEvent } from "../lib/api";
+import { analyzeRepository } from "@forage/analysis";
+import type { ForageRepository } from "@forage/shared";
 import type { SessionResponse } from "../lib/api";
+import { createImportEvent, WorkerApi } from "../lib/api";
 import {
   getAllRepositories,
   getImportEvents,
@@ -7,7 +9,6 @@ import {
   saveImportEvent,
   saveRepositories,
 } from "../lib/db";
-import type { ForageRepository } from "@forage/shared";
 
 interface AppState {
   workerOrigin: string;
@@ -60,16 +61,20 @@ async function refreshState() {
   try {
     const [config, session, repositories, events] = await Promise.all([
       api.getConfig(),
-      api.getSession().catch((error: Error): SessionResponse => ({
-        authenticated: false,
-        error: error.message,
-      })),
+      api.getSession().catch(
+        (error: Error): SessionResponse => ({
+          authenticated: false,
+          error: error.message,
+        }),
+      ),
       getAllRepositories(),
       getImportEvents(),
     ]);
 
     state.configStatus =
-      config.has_github_client_id && config.has_github_client_secret ? "Ready" : "Missing GitHub env";
+      config.has_github_client_id && config.has_github_client_secret
+        ? "Ready"
+        : "Missing GitHub env";
     state.authenticated = session.authenticated;
     state.sessionStatus = session.authenticated ? "Authenticated" : session.error || "Disconnected";
     state.user = session.user?.login ?? "-";
@@ -164,7 +169,9 @@ function render() {
   setText("progress-text", state.progress);
   setText(
     "library-summary",
-    state.repositoryCount > 0 ? `${Math.min(state.repositoryCount, 8)} shown` : "No repositories stored",
+    state.repositoryCount > 0
+      ? `${Math.min(state.repositoryCount, 8)} shown`
+      : "No repositories stored",
   );
 
   getElement("connect-link").toggleAttribute("hidden", state.authenticated);
@@ -218,13 +225,24 @@ function createRepositoryRow(repository: ForageRepository) {
 
   const meta = document.createElement("div");
   meta.className = "repo-meta";
+  const analysis = analyzeRepository(repository);
   meta.append(
+    createMetaValue(String(analysis.scores.overall.value), "Score"),
     createMetaValue(repository.primary_language || "Unknown", "Language"),
     createMetaValue(repository.stars.toLocaleString(), "Stars"),
     createMetaValue(formatDate(repository.starred_at), "Starred"),
   );
 
-  row.append(main, meta);
+  const categories = document.createElement("div");
+  categories.className = "category-row";
+  for (const categoryMatch of analysis.categories.slice(0, 3)) {
+    const category = document.createElement("span");
+    category.className = "category";
+    category.textContent = categoryMatch.label;
+    categories.append(category);
+  }
+
+  row.append(main, meta, categories);
   return row;
 }
 
