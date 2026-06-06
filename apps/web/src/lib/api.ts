@@ -32,6 +32,17 @@ export interface StarredPageResponse {
   raw_field_names: string[];
 }
 
+export class WorkerApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly rateLimit: GitHubRateLimitSnapshot | null,
+  ) {
+    super(message);
+    this.name = "WorkerApiError";
+  }
+}
+
 export class WorkerApi {
   constructor(readonly workerOrigin: string) {}
 
@@ -51,16 +62,16 @@ export class WorkerApi {
     return this.post<{ ok: boolean }>("/api/logout");
   }
 
-  getStarredPage(page: number, perPage = 100) {
+  getStarredPage(page: number, perPage = 100, signal?: AbortSignal) {
     const params = new URLSearchParams({
       page: String(page),
       per_page: String(perPage),
     });
-    return this.get<StarredPageResponse>(`/api/github/starred?${params}`);
+    return this.get<StarredPageResponse>(`/api/github/starred?${params}`, { signal });
   }
 
-  private get<T>(path: string) {
-    return this.request<T>(path, { method: "GET" });
+  private get<T>(path: string, init: RequestInit = {}) {
+    return this.request<T>(path, { ...init, method: "GET" });
   }
 
   private post<T>(path: string) {
@@ -82,7 +93,11 @@ export class WorkerApi {
         typeof payload === "object" && payload && "error" in payload
           ? String(payload.error)
           : `Worker request failed with ${response.status}`;
-      throw new Error(message);
+      const rateLimit =
+        typeof payload === "object" && payload && "rate_limit" in payload
+          ? (payload.rate_limit as GitHubRateLimitSnapshot)
+          : null;
+      throw new WorkerApiError(message, response.status, rateLimit);
     }
     return payload as T;
   }

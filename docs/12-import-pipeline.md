@@ -32,7 +32,7 @@ Import stages:
 Import state contract:
 - `packages/core` owns the pure import run state helpers.
 - Current terminal states are `completed`, `failed`, `cancelled`, and `rate_limited`.
-- The web app still needs to wire this contract into the visible import flow.
+- The web app uses this contract for visible import progress, cancellation, failure, and rate-limit terminal states.
 
 Browser Web Worker responsibilities:
 - Current app analyzes imported repository pages in a browser worker.
@@ -58,3 +58,4 @@ Open implementation decisions:
 - Whether to keep previous analysis when metadata changes
 - Partial import recovery format
 - Import metadata stored per run
+- Moving pagination/orchestration from the app thread into the import worker
