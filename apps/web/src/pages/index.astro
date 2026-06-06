@@ -12,6 +12,18 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
         <h1>Starred repos, ready to sort through.</h1>
       </div>
       <div class="topbar-actions">
+        <button
+          id="theme-toggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Switch to dark mode"
+          aria-pressed="false"
+        >
+          <span class="theme-toggle-track" aria-hidden="true">
+            <span class="theme-toggle-thumb"></span>
+          </span>
+          <span id="theme-toggle-label">Light</span>
+        </button>
         <span id="session-badge" class="status-badge neutral">Checking session</span>
         <a id="connect-link" href={workerOrigin + "/auth/github"} class="button">Connect GitHub</a>
         <button id="logout-button" class="button secondary" type="button" hidden>Logout</button>

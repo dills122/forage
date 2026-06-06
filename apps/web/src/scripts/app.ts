@@ -43,6 +43,10 @@ interface AppState {
   sortMode: "starred_at_desc" | "score_desc" | "stars_desc" | "name_asc";
 }
 
+type Theme = "light" | "dark";
+
+const themeStorageKey = "forage-theme";
+
 const state: AppState = {
   workerOrigin: "",
   configStatus: "Checking",
@@ -76,6 +80,7 @@ function startForageApp() {
   api = new WorkerApi(state.workerOrigin);
 
   bindEvents();
+  initializeThemeToggle();
   void refreshState();
 }
 
@@ -94,6 +99,30 @@ function bindEvents() {
   getElement<HTMLSelectElement>("language-filter").addEventListener("change", updateLanguageFilter);
   getElement<HTMLSelectElement>("category-filter").addEventListener("change", updateCategoryFilter);
   getElement<HTMLSelectElement>("library-sort").addEventListener("change", updateLibrarySort);
+  getElement<HTMLButtonElement>("theme-toggle").addEventListener("click", toggleTheme);
+}
+
+function initializeThemeToggle() {
+  applyTheme(getCurrentTheme());
+}
+
+function toggleTheme() {
+  const nextTheme: Theme = getCurrentTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem(themeStorageKey, nextTheme);
+  applyTheme(nextTheme);
+}
+
+function getCurrentTheme(): Theme {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme;
+  const isDark = theme === "dark";
+  const toggle = getElement<HTMLButtonElement>("theme-toggle");
+  toggle.setAttribute("aria-pressed", String(isDark));
+  toggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  setText("theme-toggle-label", isDark ? "Dark" : "Light");
 }
 
 async function refreshState() {
