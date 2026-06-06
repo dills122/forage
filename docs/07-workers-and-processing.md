@@ -3,6 +3,9 @@
 
 Import Web Worker
 
+Status:
+Planned
+
 Responsibilities:
 - GitHub pagination
 - Data normalization
@@ -13,11 +16,14 @@ Responsibilities:
 
 Analysis Web Worker
 
+Status:
+Implemented for imported repository pages in `apps/web`
+
 Responsibilities:
 - Categorization
 - Scoring
 - Insight generation
-- Report preparation
+- Persistable analysis result generation
 
 UI Thread
 
@@ -33,6 +39,7 @@ Keep large imports responsive.
 Cloudflare Workers are separate from these browser workers and should only handle backend auth/session/settings responsibilities.
 
 Required follow-up:
+- Move import pagination/orchestration into a browser worker.
 - Decide REST vs GraphQL for import.
 - Confirm pagination and rate-limit behavior.
 - Decide incremental refresh behavior.

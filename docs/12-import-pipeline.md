@@ -1,7 +1,7 @@
 # Import Pipeline
 
 Status:
-Discovery Required
+Initial vertical slice implemented; import worker orchestration still pending
 
 Goal:
 After GitHub authorization, the user imports their starred repositories into the browser. Forage then normalizes the GitHub data, stores it in IndexedDB, and generates local reports.
@@ -30,6 +30,8 @@ Import stages:
 - Report completion, cancellation, partial failure, or rate limit status
 
 Browser Web Worker responsibilities:
+- Current app analyzes imported repository pages in a browser worker.
+- Import pagination/orchestration remains on the app thread until the import state machine is split out.
 - Pagination orchestration
 - Retry and backoff
 - Normalization
