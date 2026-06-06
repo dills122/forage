@@ -33,6 +33,7 @@ const expectedPaths = [
   "biome.json",
   "scripts/analysis/review-export.ts",
   "scripts/analysis/fixtures/forage-export.sample.json",
+  "scripts/check-web-build.mjs",
   "scripts/dev/setup-codex-links.mjs",
 ];
 
@@ -50,6 +51,7 @@ for (const scriptName of [
   "check:docs",
   "check:scripts",
   "check:workspace",
+  "check:web-smoke",
   "check:pre-mvp",
   "format",
   "format:astro",
