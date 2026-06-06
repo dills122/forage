@@ -50,7 +50,7 @@ Current IndexedDB stores:
   - Key: `id`
 - `analysisResults`
   - Key: `repository_id`
-  - Indexes: `repository_full_name`, `analysis_version`, `score_version`
+  - Indexes: `repository_full_name`, `analysis_version`
 - `metadata`
   - Key: `id`
   - Current record: `local-library-profile`

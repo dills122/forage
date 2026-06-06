@@ -11,6 +11,7 @@ import {
 } from "@forage/core";
 import { WorkerApi, WorkerApiError } from "../lib/api";
 import {
+  reconcileImportedRepositories,
   saveAnalysisResults,
   saveImportEvent,
   saveLocalLibraryProfile,
@@ -54,6 +55,7 @@ async function runImport(message: ImportWorkerStartMessage) {
 
   let importRun = createImportRunState();
   const observedFieldNames = new Set<string>();
+  const importedRepositoryIds = new Set<number>();
   const api = new WorkerApi(message.workerOrigin);
 
   try {
@@ -64,6 +66,9 @@ async function runImport(message: ImportWorkerStartMessage) {
       const result = await api.getStarredPage(page, 100, activeImportController.signal);
 
       await saveRepositories(result.repositories);
+      for (const repository of result.repositories) {
+        importedRepositoryIds.add(repository.github_id);
+      }
       postProgress(message.id, importRun, "analyzing", page, observedFieldNames);
       await saveAnalysisResults(analyzeRepositories(result.repositories));
 
@@ -78,6 +83,7 @@ async function runImport(message: ImportWorkerStartMessage) {
     }
 
     const completedAt = new Date().toISOString();
+    await reconcileImportedRepositories(importedRepositoryIds);
     await saveLocalLibraryProfile({
       github_login: message.sessionUser?.login ?? null,
       github_user_id: message.sessionUser?.id ?? null,

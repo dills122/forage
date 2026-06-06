@@ -1,7 +1,7 @@
 # Import Pipeline
 
 Status:
-Initial vertical slice implemented; import worker orchestration still pending
+Initial import worker orchestration implemented
 
 Goal:
 After GitHub authorization, the user imports their starred repositories into the browser. Forage then normalizes the GitHub data, stores it in IndexedDB, and generates local reports.
@@ -35,8 +35,6 @@ Import state contract:
 - The web app uses this contract for visible import progress, cancellation, failure, and rate-limit terminal states.
 
 Browser Web Worker responsibilities:
-- Current app analyzes imported repository pages in a browser worker.
-- Import pagination/orchestration remains on the app thread until the import state machine is split out.
 - Pagination orchestration
 - Retry and backoff
 - Normalization
@@ -53,9 +51,7 @@ Rate-limit posture:
 
 Open implementation decisions:
 - REST vs GraphQL after the initial spike
-- Full reimport vs incremental refresh
-- How to detect removed stars
+- Full reimport is the MVP refresh model; completed imports reconcile local data to remove repositories that are no longer starred.
 - Whether to keep previous analysis when metadata changes
 - Partial import recovery format
 - Import metadata stored per run
-- Moving pagination/orchestration from the app thread into the import worker

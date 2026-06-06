@@ -10,7 +10,7 @@
   import { Download, FileSpreadsheet, LogOut, Moon, RefreshCw, Sun, Trash2, X } from "@lucide/svelte";
   import { onMount } from "svelte";
   import AdvancedDetails from "./AdvancedDetails.svelte";
-  import type { SessionResponse } from "../lib/api";
+  import type { SessionResponse, WorkerConfig } from "../lib/api";
   import { WorkerApi } from "../lib/api";
   import {
     getAllAnalysisResults,
@@ -152,29 +152,33 @@
 
   async function refreshState() {
     try {
-      const [config, session, repositories, events, analysisResults, localLibraryProfile] =
-        await Promise.all([
-          api.getConfig(),
-          api.getSession().catch(
-            (error: Error): SessionResponse => ({
-              authenticated: false,
-              error: error.message,
-            }),
-          ),
-          getAllRepositories(),
-          getImportEvents(),
-          getAllAnalysisResults(),
-          getLocalLibraryProfile(),
-        ]);
+      const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
+        getAllRepositories(),
+        getImportEvents(),
+        getAllAnalysisResults(),
+        getLocalLibraryProfile(),
+      ]);
+      const [config, session] = await Promise.all([
+        api.getConfig().catch((error: Error) => ({
+          error: error.message,
+          has_github_client_id: false,
+          has_github_client_secret: false,
+        })),
+        api.getSession().catch(
+          (error: Error): SessionResponse => ({
+            authenticated: false,
+            error: error.message,
+          }),
+        ),
+      ]);
       const settingsResponse = session.authenticated
         ? await api.getSettings().catch(() => null)
         : null;
+      const localLibraryOwner = getLocalLibraryOwner(localLibraryProfile, repositories.length);
+      const localLibraryConflict = hasLocalLibraryConflict(localLibraryProfile, session.user);
 
       patchState({
-        configStatus:
-          config.has_github_client_id && config.has_github_client_secret
-            ? "Ready"
-            : "Missing GitHub env",
+        configStatus: getConfigStatus(config),
         authenticated: session.authenticated,
         sessionUser: session.user ?? null,
         sessionStatus: session.authenticated ? "Authenticated" : session.error || "Disconnected",
@@ -184,10 +188,16 @@
         analysisByRepositoryId: createCurrentAnalysisMap(analysisResults),
         topLanguage: getTopLanguage(repositories),
         localLibraryProfile,
-        localLibraryOwner: getLocalLibraryOwner(localLibraryProfile, repositories.length),
-        localLibraryConflict: hasLocalLibraryConflict(localLibraryProfile, session.user),
+        localLibraryOwner,
+        localLibraryConflict,
         user: getUserDisplay(session, localLibraryProfile, repositories.length),
-        localLibraryStatus: getLocalLibraryStatus(repositories.length, session.authenticated),
+        localLibraryStatus: getLocalLibraryStatus(
+          repositories.length,
+          session.authenticated,
+          localLibraryConflict,
+          localLibraryOwner,
+          session.user?.login ?? null,
+        ),
         settings: settingsResponse?.settings ?? defaultSettings(),
         settingsStatus: getSettingsStatus(session.authenticated, settingsResponse?.settings),
       });
@@ -409,10 +419,25 @@
     );
   }
 
-  function getLocalLibraryStatus(repositoryCount: number, authenticated: boolean) {
+  function getConfigStatus(config: Pick<WorkerConfig, "has_github_client_id" | "has_github_client_secret"> & {
+    error?: string;
+  }) {
+    if (config.error) return config.error;
+    return config.has_github_client_id && config.has_github_client_secret
+      ? "Ready"
+      : "Missing GitHub env";
+  }
+
+  function getLocalLibraryStatus(
+    repositoryCount: number,
+    authenticated: boolean,
+    localLibraryConflict: boolean,
+    localLibraryOwner: string,
+    sessionLogin: string | null,
+  ) {
     if (repositoryCount === 0) return "No repository data stored locally.";
-    if (state.localLibraryConflict) {
-      return `${repositoryCount} repositories stored locally for ${state.localLibraryOwner}; current GitHub session is ${state.sessionUser?.login}.`;
+    if (localLibraryConflict) {
+      return `${repositoryCount} repositories stored locally for ${localLibraryOwner}; current GitHub session is ${sessionLogin}.`;
     }
     if (authenticated) return `${repositoryCount} repositories stored locally and ready to refresh.`;
     return `${repositoryCount} repositories stored locally; GitHub is disconnected.`;
