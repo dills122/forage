@@ -124,6 +124,28 @@ h2 {
   margin-bottom: 16px;
 }
 
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #cbd9e6;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #f3f8fc;
+  color: #31556f;
+}
+
+.notice.warning {
+  border-color: #e3c9a9;
+  background: #fff8ee;
+  color: #765124;
+}
+
+.notice strong {
+  white-space: nowrap;
+}
+
 .metric-panel,
 .panel {
   border: 1px solid #d5ded9;
@@ -151,6 +173,10 @@ h2 {
   margin-top: 18px;
   font-size: 1.65rem;
   line-height: 1.05;
+}
+
+.muted-value {
+  color: #65736e;
 }
 
 .workspace-grid {
@@ -356,6 +382,11 @@ h2 {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .notice {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .repo-meta {

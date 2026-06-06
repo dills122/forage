@@ -1,7 +1,16 @@
 import type { ForageRepository, ImportEvent } from "@forage/shared";
 
 const dbName = "forage";
-const dbVersion = 1;
+const dbVersion = 2;
+const localLibraryProfileKey = "local-library-profile";
+
+export interface LocalLibraryProfile {
+  id: typeof localLibraryProfileKey;
+  github_login: string | null;
+  github_user_id: number | null;
+  repository_count: number;
+  updated_at: string;
+}
 
 export async function saveRepositories(repositories: ForageRepository[]) {
   const db = await openDb();
@@ -40,11 +49,29 @@ export async function getImportEvents() {
   return events.sort((left, right) => right.started_at.localeCompare(left.started_at));
 }
 
+export async function saveLocalLibraryProfile(profile: Omit<LocalLibraryProfile, "id">) {
+  const db = await openDb();
+  const tx = db.transaction("metadata", "readwrite");
+  tx.objectStore("metadata").put({ ...profile, id: localLibraryProfileKey });
+  await txDone(tx);
+  db.close();
+}
+
+export async function getLocalLibraryProfile() {
+  const db = await openDb();
+  const tx = db.transaction("metadata", "readonly");
+  const request = tx.objectStore("metadata").get(localLibraryProfileKey);
+  const profile = await requestDone<LocalLibraryProfile | undefined>(request);
+  db.close();
+  return profile ?? null;
+}
+
 export async function resetLocalData() {
   const db = await openDb();
-  const tx = db.transaction(["repositories", "importEvents"], "readwrite");
+  const tx = db.transaction(["repositories", "importEvents", "metadata"], "readwrite");
   tx.objectStore("repositories").clear();
   tx.objectStore("importEvents").clear();
+  tx.objectStore("metadata").clear();
   await txDone(tx);
   db.close();
 }
@@ -65,6 +92,10 @@ function openDb() {
 
       if (!db.objectStoreNames.contains("importEvents")) {
         db.createObjectStore("importEvents", { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains("metadata")) {
+        db.createObjectStore("metadata", { keyPath: "id" });
       }
     };
 

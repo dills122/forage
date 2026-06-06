@@ -1,5 +1,18 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
   output: "static",
+  vite: {
+    resolve: {
+      alias: {
+        "@forage/analysis": fileURLToPath(
+          new URL("../../packages/analysis/src/index.ts", import.meta.url),
+        ),
+        "@forage/shared": fileURLToPath(
+          new URL("../../packages/shared/src/index.ts", import.meta.url),
+        ),
+      },
+    },
+  },
 });

@@ -37,6 +37,14 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
       </article>
     </section>
 
+    <section id="local-library-notice" class="notice" hidden>
+      <strong id="local-library-notice-title">Local library available</strong>
+      <span id="local-library-notice-body">
+        These repositories are stored in this browser. Connect GitHub when you want to refresh
+        imports.
+      </span>
+    </section>
+
     <section class="workspace-grid">
       <section class="panel import-panel">
         <div class="panel-heading">
@@ -70,12 +78,14 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
           <dd id="worker-origin">{workerOrigin}</dd>
           <dt>Session</dt>
           <dd id="session-status">Checking</dd>
+          <dt>Local owner</dt>
+          <dd id="local-owner">Checking</dd>
         </dl>
         <details class="diagnostics">
           <summary>Diagnostics</summary>
           <dl class="detail-list">
             <dt>Repository data</dt>
-            <dd>Browser-local IndexedDB</dd>
+            <dd id="repository-storage-status">Browser-local IndexedDB</dd>
             <dt>Server storage</dt>
             <dd>Auth, session, settings, preferences only</dd>
             <dt>Observed fields</dt>

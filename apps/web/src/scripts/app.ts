@@ -5,8 +5,11 @@ import { createImportEvent, WorkerApi } from "../lib/api";
 import {
   getAllRepositories,
   getImportEvents,
+  getLocalLibraryProfile,
+  type LocalLibraryProfile,
   resetLocalData,
   saveImportEvent,
+  saveLocalLibraryProfile,
   saveRepositories,
 } from "../lib/db";
 
@@ -18,7 +21,12 @@ interface AppState {
   repositoryCount: number;
   latestImport: string;
   progress: string;
+  localLibraryStatus: string;
   authenticated: boolean;
+  sessionUser: SessionResponse["user"] | null;
+  localLibraryProfile: LocalLibraryProfile | null;
+  localLibraryOwner: string;
+  localLibraryConflict: boolean;
   repositories: ForageRepository[];
   topLanguage: string;
 }
@@ -31,7 +39,12 @@ const state: AppState = {
   repositoryCount: 0,
   latestImport: "-",
   progress: "Ready.",
+  localLibraryStatus: "No repository data stored locally.",
   authenticated: false,
+  sessionUser: null,
+  localLibraryProfile: null,
+  localLibraryOwner: "-",
+  localLibraryConflict: false,
   repositories: [],
   topLanguage: "-",
 };
@@ -59,7 +72,7 @@ function bindEvents() {
 
 async function refreshState() {
   try {
-    const [config, session, repositories, events] = await Promise.all([
+    const [config, session, repositories, events, localLibraryProfile] = await Promise.all([
       api.getConfig(),
       api.getSession().catch(
         (error: Error): SessionResponse => ({
@@ -69,6 +82,7 @@ async function refreshState() {
       ),
       getAllRepositories(),
       getImportEvents(),
+      getLocalLibraryProfile(),
     ]);
 
     state.configStatus =
@@ -76,12 +90,17 @@ async function refreshState() {
         ? "Ready"
         : "Missing GitHub env";
     state.authenticated = session.authenticated;
+    state.sessionUser = session.user ?? null;
     state.sessionStatus = session.authenticated ? "Authenticated" : session.error || "Disconnected";
-    state.user = session.user?.login ?? "-";
     state.repositoryCount = repositories.length;
     state.latestImport = events[0] ? `${events[0].status} (${events[0].repositories})` : "-";
     state.repositories = sortRepositories(repositories);
     state.topLanguage = getTopLanguage(repositories);
+    state.localLibraryProfile = localLibraryProfile;
+    state.localLibraryOwner = getLocalLibraryOwner(localLibraryProfile, repositories.length);
+    state.localLibraryConflict = hasLocalLibraryConflict(localLibraryProfile, session.user);
+    state.user = getUserDisplay(session, localLibraryProfile, repositories.length);
+    state.localLibraryStatus = getLocalLibraryStatus(repositories.length, session.authenticated);
   } catch (error) {
     state.configStatus = error instanceof Error ? error.message : "Worker unavailable";
     state.sessionStatus = "Unavailable";
@@ -97,6 +116,12 @@ async function logout() {
 }
 
 async function importStars() {
+  if (state.localLibraryConflict) {
+    state.progress = "This browser already has a local library for another GitHub account.";
+    render();
+    return;
+  }
+
   const event = createImportEvent();
   const fieldNames = new Set<string>();
 
@@ -120,6 +145,12 @@ async function importStars() {
 
     event.status = "completed";
     event.completed_at = new Date().toISOString();
+    await saveLocalLibraryProfile({
+      github_login: state.sessionUser?.login ?? null,
+      github_user_id: state.sessionUser?.id ?? null,
+      repository_count: event.repositories,
+      updated_at: event.completed_at,
+    });
     state.progress = `Imported ${event.repositories} repositories across ${event.pages} page(s).`;
   } catch (error) {
     event.status = "failed";
@@ -140,11 +171,16 @@ async function resetData() {
 }
 
 async function exportJson() {
-  const [repositories, events] = await Promise.all([getAllRepositories(), getImportEvents()]);
+  const [repositories, events, localLibraryProfile] = await Promise.all([
+    getAllRepositories(),
+    getImportEvents(),
+    getLocalLibraryProfile(),
+  ]);
   const payload = {
     exported_at: new Date().toISOString(),
     repositories,
     latest_import_event: events[0] ?? null,
+    local_library_profile: localLibraryProfile,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -163,10 +199,14 @@ function render() {
   setText("session-status", state.sessionStatus);
   setText("session-badge", state.authenticated ? "Authenticated" : state.sessionStatus);
   setText("github-user", state.user);
+  setText("local-owner", state.localLibraryOwner);
   setText("repository-count", String(state.repositoryCount));
   setText("top-language", state.topLanguage);
   setText("latest-import", state.latestImport);
   setText("progress-text", state.progress);
+  setText("repository-storage-status", state.localLibraryStatus);
+  setText("local-library-notice-title", getLocalLibraryNoticeTitle());
+  setText("local-library-notice-body", getLocalLibraryNoticeBody());
   setText(
     "library-summary",
     state.repositoryCount > 0
@@ -176,12 +216,16 @@ function render() {
 
   getElement("connect-link").toggleAttribute("hidden", state.authenticated);
   getElement("logout-button").toggleAttribute("hidden", !state.authenticated);
-  getElement<HTMLButtonElement>("import-button").disabled = !state.authenticated;
+  getElement<HTMLButtonElement>("import-button").disabled =
+    !state.authenticated || state.localLibraryConflict;
   getElement<HTMLButtonElement>("export-button").disabled = state.repositoryCount === 0;
   getElement<HTMLButtonElement>("reset-button").disabled = state.repositoryCount === 0;
+  getElement("local-library-notice").toggleAttribute("hidden", state.repositoryCount === 0);
 
   const sessionBadge = getElement("session-badge");
   sessionBadge.className = `status-badge ${state.authenticated ? "success" : "neutral"}`;
+  getElement("github-user").classList.toggle("muted-value", !state.authenticated);
+  getElement("local-library-notice").classList.toggle("warning", state.localLibraryConflict);
   renderRepositories();
 }
 
@@ -274,6 +318,56 @@ function getTopLanguage(repositories: ForageRepository[]) {
   const [language, count] =
     [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
   return language && count ? `${language} (${count})` : "-";
+}
+
+function getLocalLibraryStatus(repositoryCount: number, authenticated: boolean) {
+  if (repositoryCount === 0) return "No repository data stored locally.";
+  if (state.localLibraryConflict) {
+    return `${repositoryCount} repositories stored locally for ${state.localLibraryOwner}; current GitHub session is ${state.sessionUser?.login}.`;
+  }
+  if (authenticated) return `${repositoryCount} repositories stored locally and ready to refresh.`;
+  return `${repositoryCount} repositories stored locally; GitHub is disconnected.`;
+}
+
+function getLocalLibraryOwner(profile: LocalLibraryProfile | null, repositoryCount: number) {
+  if (repositoryCount === 0) return "-";
+  return profile?.github_login ? profile.github_login : "Unknown local owner";
+}
+
+function getUserDisplay(
+  session: SessionResponse,
+  profile: LocalLibraryProfile | null,
+  repositoryCount: number,
+) {
+  if (session.authenticated) return session.user?.login ?? "-";
+  if (repositoryCount > 0 && profile?.github_login)
+    return `${profile.github_login} (not connected)`;
+  if (repositoryCount > 0) return "Not connected";
+  return "-";
+}
+
+function hasLocalLibraryConflict(
+  profile: LocalLibraryProfile | null,
+  sessionUser: SessionResponse["user"] | undefined,
+) {
+  if (!profile?.github_login || !sessionUser?.login) return false;
+  return profile.github_login.toLowerCase() !== sessionUser.login.toLowerCase();
+}
+
+function getLocalLibraryNoticeTitle() {
+  if (state.localLibraryConflict) return "Different GitHub account connected";
+  if (state.authenticated) return "Local library synced to this browser";
+  return "Local library available";
+}
+
+function getLocalLibraryNoticeBody() {
+  if (state.localLibraryConflict) {
+    return `This browser has local data for ${state.localLibraryOwner}, but the current GitHub session is ${state.sessionUser?.login}. Export or reset local data before importing another account.`;
+  }
+  if (state.authenticated) {
+    return `This browser has local data for ${state.localLibraryOwner}. Refresh imports when you want to update it.`;
+  }
+  return `This browser has local data for ${state.localLibraryOwner}. Connect GitHub when you want to refresh imports.`;
 }
 
 function formatDate(value: string) {
