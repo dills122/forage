@@ -10,11 +10,13 @@
     "typecheck": "astro check"
   },
   "dependencies": {
+    "@astrojs/svelte": "^8.1.2",
     "@forage/analysis": "workspace:*",
     "@forage/core": "workspace:*",
     "@forage/reporting": "workspace:*",
     "@forage/shared": "workspace:*",
-    "astro": "^6.4.4"
+    "astro": "^6.4.4",
+    "svelte": "^5.56.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4"

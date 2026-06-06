@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const root = resolve(".");
@@ -15,14 +15,6 @@ if (!indexHtml.includes("Starred repos, ready to sort through.")) {
   failures.push("Web build index is missing the expected app heading.");
 }
 
-const moduleScripts = collectHtmlAssetPaths(
-  indexHtml,
-  /<script[^>]+type="module"[^>]+src="([^"]+)"/g,
-);
-if (moduleScripts.length === 0) {
-  failures.push("Web build index is missing a module script entry.");
-}
-
 const cssAssets = collectHtmlAssetPaths(
   indexHtml,
   /<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g,
@@ -31,12 +23,17 @@ if (cssAssets.length === 0) {
   failures.push("Web build index is missing a stylesheet asset.");
 }
 
-for (const assetPath of [...moduleScripts, ...cssAssets]) {
+const jsAssets = await collectBuiltAssetPaths("_astro", ".js");
+if (jsAssets.length === 0) {
+  failures.push("Web build is missing JavaScript assets.");
+}
+
+for (const assetPath of cssAssets) {
   await assertExists(join(webDist, assetPath), `referenced web asset: ${assetPath}`);
 }
 
 const scriptContents = await Promise.all(
-  moduleScripts.map((assetPath) => readRequiredFile(join(webDist, assetPath), assetPath)),
+  jsAssets.map((assetPath) => readRequiredFile(join(webDist, assetPath), assetPath)),
 );
 const appEntry = scriptContents.join("\n");
 
@@ -49,6 +46,7 @@ if (!appEntry.includes("import:start") || !appEntry.includes("import:cancel")) {
 }
 
 const workerAssets = new Set([
+  ...jsAssets.filter((assetPath) => assetPath.includes("import.worker")),
   ...collectJsAssetPaths(appEntry, /["'](\/_astro\/[^"']*import\.worker[^"']*\.js)["']/g),
   ...collectJsAssetPaths(appEntry, /new URL\(["']([^"']+import\.worker[^"']+\.js)["']/g),
 ]);
@@ -88,6 +86,18 @@ function collectHtmlAssetPaths(contents, pattern) {
 
 function collectJsAssetPaths(contents, pattern) {
   return [...contents.matchAll(pattern)].map((match) => normalizeAssetPath(match[1]));
+}
+
+async function collectBuiltAssetPaths(directory, extension) {
+  try {
+    const entries = await readdir(join(webDist, directory), { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(extension))
+      .map((entry) => normalizeAssetPath(join(directory, entry.name)));
+  } catch (error) {
+    failures.push(`Missing or unreadable built asset directory: ${error.message}`);
+    return [];
+  }
 }
 
 function normalizeAssetPath(path) {
