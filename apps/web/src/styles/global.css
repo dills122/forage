@@ -263,6 +263,39 @@ h2 {
   min-height: 360px;
 }
 
+.library-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) repeat(3, minmax(150px, 0.75fr));
+  gap: 12px;
+  border-top: 1px solid #e4e9e6;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.library-controls label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #65736e;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.library-controls input,
+.library-controls select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #c9d3cf;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  color: #17201d;
+  font: inherit;
+  font-size: 0.92rem;
+  text-transform: none;
+}
+
 .repo-list {
   display: grid;
   gap: 0;
@@ -392,10 +425,15 @@ h2 {
   .repo-meta {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .library-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
   .metric-grid,
+  .library-controls,
   .detail-list,
   .repo-meta {
     grid-template-columns: 1fr;

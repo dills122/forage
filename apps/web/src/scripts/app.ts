@@ -32,6 +32,10 @@ interface AppState {
   repositories: ForageRepository[];
   analysisByRepositoryId: Map<number, RepositoryAnalysis>;
   topLanguage: string;
+  searchQuery: string;
+  languageFilter: string;
+  categoryFilter: string;
+  sortMode: "starred_at_desc" | "score_desc" | "stars_desc" | "name_asc";
 }
 
 const state: AppState = {
@@ -51,6 +55,10 @@ const state: AppState = {
   repositories: [],
   analysisByRepositoryId: new Map(),
   topLanguage: "-",
+  searchQuery: "",
+  languageFilter: "",
+  categoryFilter: "",
+  sortMode: "starred_at_desc",
 };
 
 let api: WorkerApi;
@@ -72,6 +80,10 @@ function bindEvents() {
   getElement<HTMLButtonElement>("import-button").addEventListener("click", importStars);
   getElement<HTMLButtonElement>("reset-button").addEventListener("click", resetData);
   getElement<HTMLButtonElement>("export-button").addEventListener("click", exportJson);
+  getElement<HTMLInputElement>("library-search").addEventListener("input", updateLibrarySearch);
+  getElement<HTMLSelectElement>("language-filter").addEventListener("change", updateLanguageFilter);
+  getElement<HTMLSelectElement>("category-filter").addEventListener("change", updateCategoryFilter);
+  getElement<HTMLSelectElement>("library-sort").addEventListener("change", updateLibrarySort);
 }
 
 async function refreshState() {
@@ -207,6 +219,26 @@ async function exportJson() {
   URL.revokeObjectURL(url);
 }
 
+function updateLibrarySearch(event: Event) {
+  state.searchQuery = (event.target as HTMLInputElement).value;
+  renderRepositories();
+}
+
+function updateLanguageFilter(event: Event) {
+  state.languageFilter = (event.target as HTMLSelectElement).value;
+  renderRepositories();
+}
+
+function updateCategoryFilter(event: Event) {
+  state.categoryFilter = (event.target as HTMLSelectElement).value;
+  renderRepositories();
+}
+
+function updateLibrarySort(event: Event) {
+  state.sortMode = (event.target as HTMLSelectElement).value as AppState["sortMode"];
+  renderRepositories();
+}
+
 function render() {
   setText("worker-origin", state.workerOrigin);
   setText("config-status", state.configStatus);
@@ -224,7 +256,7 @@ function render() {
   setText(
     "library-summary",
     state.repositoryCount > 0
-      ? `${Math.min(state.repositoryCount, 8)} shown`
+      ? `${Math.min(getFilteredRepositories().length, 24)} shown`
       : "No repositories stored",
   );
 
@@ -240,15 +272,27 @@ function render() {
   sessionBadge.className = `status-badge ${state.authenticated ? "success" : "neutral"}`;
   getElement("github-user").classList.toggle("muted-value", !state.authenticated);
   getElement("local-library-notice").classList.toggle("warning", state.localLibraryConflict);
+  renderFilterOptions();
   renderRepositories();
 }
 
 function renderRepositories() {
   const list = getElement("repo-list");
   const empty = getElement("library-empty");
-  const repositories = state.repositories.slice(0, 8);
+  const filteredRepositories = getFilteredRepositories();
+  const repositories = filteredRepositories.slice(0, 24);
 
-  empty.toggleAttribute("hidden", repositories.length > 0);
+  setText(
+    "library-summary",
+    state.repositoryCount > 0
+      ? `${repositories.length} shown of ${filteredRepositories.length} matched`
+      : "No repositories stored",
+  );
+  empty.toggleAttribute("hidden", state.repositoryCount > 0);
+  empty.textContent =
+    state.repositoryCount === 0
+      ? "Connect GitHub and import stars to build the local library."
+      : "No repositories match the current filters.";
   list.replaceChildren(...repositories.map(createRepositoryRow));
 }
 
@@ -283,8 +327,7 @@ function createRepositoryRow(repository: ForageRepository) {
 
   const meta = document.createElement("div");
   meta.className = "repo-meta";
-  const analysis =
-    state.analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
+  const analysis = getRepositoryAnalysis(repository);
   meta.append(
     createMetaValue(String(analysis.scores.overall.value), "Score"),
     createMetaValue(repository.primary_language || "Unknown", "Language"),
@@ -321,6 +364,86 @@ function createMetaValue(value: string, label: string) {
 
 function sortRepositories(repositories: ForageRepository[]) {
   return [...repositories].sort((left, right) => right.starred_at.localeCompare(left.starred_at));
+}
+
+function getFilteredRepositories() {
+  const query = state.searchQuery.trim().toLowerCase();
+  return sortVisibleRepositories(
+    state.repositories.filter((repository) => {
+      const analysis = getRepositoryAnalysis(repository);
+      const language = repository.primary_language || "Unknown";
+      const categoryLabels = analysis.categories.map((category) => category.label);
+      const searchableText = [
+        repository.full_name,
+        repository.description ?? "",
+        language,
+        ...repository.topics,
+        ...categoryLabels,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        (!query || searchableText.includes(query)) &&
+        (!state.languageFilter || language === state.languageFilter) &&
+        (!state.categoryFilter || categoryLabels.includes(state.categoryFilter))
+      );
+    }),
+  );
+}
+
+function sortVisibleRepositories(repositories: ForageRepository[]) {
+  return [...repositories].sort((left, right) => {
+    if (state.sortMode === "score_desc") {
+      return (
+        getRepositoryAnalysis(right).scores.overall.value -
+        getRepositoryAnalysis(left).scores.overall.value
+      );
+    }
+    if (state.sortMode === "stars_desc") return right.stars - left.stars;
+    if (state.sortMode === "name_asc") return left.full_name.localeCompare(right.full_name);
+    return right.starred_at.localeCompare(left.starred_at);
+  });
+}
+
+function renderFilterOptions() {
+  const languages = [
+    ...new Set(state.repositories.map((repo) => repo.primary_language || "Unknown")),
+  ].sort();
+  const categories = [
+    ...new Set(
+      state.repositories.flatMap((repository) =>
+        getRepositoryAnalysis(repository).categories.map((category) => category.label),
+      ),
+    ),
+  ].sort();
+
+  updateSelectOptions(getElement<HTMLSelectElement>("language-filter"), "All languages", languages);
+  updateSelectOptions(
+    getElement<HTMLSelectElement>("category-filter"),
+    "All categories",
+    categories,
+  );
+}
+
+function updateSelectOptions(select: HTMLSelectElement, defaultLabel: string, values: string[]) {
+  const currentValue = select.value;
+  select.replaceChildren(
+    createOption("", defaultLabel),
+    ...values.map((value) => createOption(value, value)),
+  );
+  select.value = values.includes(currentValue) ? currentValue : "";
+}
+
+function createOption(value: string, label: string) {
+  const option = document.createElement("option");
+  option.value = value;
+  option.textContent = label;
+  return option;
+}
+
+function getRepositoryAnalysis(repository: ForageRepository) {
+  return state.analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
 }
 
 function getTopLanguage(repositories: ForageRepository[]) {

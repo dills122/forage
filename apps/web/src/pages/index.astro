@@ -103,6 +103,33 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
         </div>
         <span id="library-summary" class="status-pill">No repositories stored</span>
       </div>
+      <div class="library-controls" aria-label="Library controls">
+        <label>
+          <span>Search</span>
+          <input id="library-search" type="search" placeholder="Repo, topic, description" />
+        </label>
+        <label>
+          <span>Language</span>
+          <select id="language-filter">
+            <option value="">All languages</option>
+          </select>
+        </label>
+        <label>
+          <span>Category</span>
+          <select id="category-filter">
+            <option value="">All categories</option>
+          </select>
+        </label>
+        <label>
+          <span>Sort</span>
+          <select id="library-sort">
+            <option value="starred_at_desc">Recently starred</option>
+            <option value="score_desc">Highest score</option>
+            <option value="stars_desc">Most stars</option>
+            <option value="name_asc">Name</option>
+          </select>
+        </label>
+      </div>
       <div id="library-empty" class="empty-state">
         Connect GitHub and import stars to build the local library.
       </div>
