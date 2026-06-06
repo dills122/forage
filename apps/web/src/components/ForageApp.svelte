@@ -64,7 +64,14 @@
   let state: AppState = createInitialState(workerOrigin);
 
   $: importRunning = Boolean(activeImportSession) || state.importRun?.status === "running";
-  $: filteredRepositories = getFilteredRepositories();
+  $: filteredRepositories = getFilteredRepositories(
+    state.repositories,
+    state.searchQuery,
+    state.languageFilter,
+    state.categoryFilter,
+    state.sortMode,
+    state.analysisByRepositoryId,
+  );
   $: visibleRepositories = filteredRepositories.slice(0, 24);
   $: librarySummary =
     state.repositoryCount > 0
@@ -76,7 +83,9 @@
   $: categories = [
     ...new Set(
       state.repositories.flatMap((repository) =>
-        getRepositoryAnalysis(repository).categories.map((category) => category.label),
+        getRepositoryAnalysis(repository, state.analysisByRepositoryId).categories.map(
+          (category) => category.label,
+        ),
       ),
     ),
   ].sort();
@@ -318,11 +327,18 @@
     return [...repositories].sort((left, right) => right.starred_at.localeCompare(left.starred_at));
   }
 
-  function getFilteredRepositories() {
-    const query = state.searchQuery.trim().toLowerCase();
+  function getFilteredRepositories(
+    repositories: ForageRepository[],
+    searchQuery: string,
+    languageFilter: string,
+    categoryFilter: string,
+    sortMode: AppState["sortMode"],
+    analysisByRepositoryId: Map<number, RepositoryAnalysis>,
+  ) {
+    const query = searchQuery.trim().toLowerCase();
     return sortVisibleRepositories(
-      state.repositories.filter((repository) => {
-        const analysis = getRepositoryAnalysis(repository);
+      repositories.filter((repository) => {
+        const analysis = getRepositoryAnalysis(repository, analysisByRepositoryId);
         const language = repository.primary_language || "Unknown";
         const categoryLabels = analysis.categories.map((category) => category.label);
         const searchableText = [
@@ -337,29 +353,38 @@
 
         return (
           (!query || searchableText.includes(query)) &&
-          (!state.languageFilter || language === state.languageFilter) &&
-          (!state.categoryFilter || categoryLabels.includes(state.categoryFilter))
+          (!languageFilter || language === languageFilter) &&
+          (!categoryFilter || categoryLabels.includes(categoryFilter))
         );
       }),
+      sortMode,
+      analysisByRepositoryId,
     );
   }
 
-  function sortVisibleRepositories(repositories: ForageRepository[]) {
+  function sortVisibleRepositories(
+    repositories: ForageRepository[],
+    sortMode: AppState["sortMode"],
+    analysisByRepositoryId: Map<number, RepositoryAnalysis>,
+  ) {
     return [...repositories].sort((left, right) => {
-      if (state.sortMode === "score_desc") {
+      if (sortMode === "score_desc") {
         return (
-          getRepositoryAnalysis(right).scores.overall.value -
-          getRepositoryAnalysis(left).scores.overall.value
+          getRepositoryAnalysis(right, analysisByRepositoryId).scores.overall.value -
+          getRepositoryAnalysis(left, analysisByRepositoryId).scores.overall.value
         );
       }
-      if (state.sortMode === "stars_desc") return right.stars - left.stars;
-      if (state.sortMode === "name_asc") return left.full_name.localeCompare(right.full_name);
+      if (sortMode === "stars_desc") return right.stars - left.stars;
+      if (sortMode === "name_asc") return left.full_name.localeCompare(right.full_name);
       return right.starred_at.localeCompare(left.starred_at);
     });
   }
 
-  function getRepositoryAnalysis(repository: ForageRepository) {
-    return state.analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
+  function getRepositoryAnalysis(
+    repository: ForageRepository,
+    analysisByRepositoryId = state.analysisByRepositoryId,
+  ) {
+    return analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
   }
 
   function getTopLanguage(repositories: ForageRepository[]) {
