@@ -598,28 +598,8 @@
           Reset Local Data
         </button>
       </div>
-    </section>
 
-    <section class="panel diagnostics-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="section-kicker">Connection</p>
-          <h2>Runtime details</h2>
-        </div>
-      </div>
-      <dl class="detail-list">
-        <dt>Worker</dt>
-        <dd id="worker-origin">{state.workerOrigin}</dd>
-        <dt>Session</dt>
-        <dd id="session-status">{state.sessionStatus}</dd>
-        <dt>Local owner</dt>
-        <dd id="local-owner">{state.localLibraryOwner}</dd>
-      </dl>
-      <div class="settings-block">
-        <div>
-          <p class="section-kicker">Settings</p>
-          <h2>Privacy preferences</h2>
-        </div>
+      <div class="settings-row">
         <label class="setting-toggle">
           <input
             id="analytics-toggle"
@@ -634,16 +614,33 @@
           </span>
         </label>
       </div>
-      <details class="diagnostics">
-        <summary>Diagnostics</summary>
-        <dl class="detail-list">
-          <dt>Repository data</dt>
-          <dd id="repository-storage-status">{state.localLibraryStatus}</dd>
-          <dt>Server storage</dt>
-          <dd>Auth, session, settings, preferences only</dd>
-          <dt>Observed fields</dt>
-          <dd id="observed-fields">{state.observedFields}</dd>
-        </dl>
+
+      <details class="advanced-details">
+        <summary>Runtime and diagnostics</summary>
+        <div class="advanced-details-grid">
+          <div>
+            <p class="section-kicker">Connection</p>
+            <dl class="detail-list compact">
+              <dt>Worker</dt>
+              <dd id="worker-origin">{state.workerOrigin}</dd>
+              <dt>Session</dt>
+              <dd id="session-status">{state.sessionStatus}</dd>
+              <dt>Local owner</dt>
+              <dd id="local-owner">{state.localLibraryOwner}</dd>
+            </dl>
+          </div>
+          <div>
+            <p class="section-kicker">Diagnostics</p>
+            <dl class="detail-list compact">
+              <dt>Repository data</dt>
+              <dd id="repository-storage-status">{state.localLibraryStatus}</dd>
+              <dt>Server storage</dt>
+              <dd>Auth, session, settings, preferences only</dd>
+              <dt>Observed fields</dt>
+              <dd id="observed-fields">{state.observedFields}</dd>
+            </dl>
+          </div>
+        </div>
       </details>
     </section>
   </section>
