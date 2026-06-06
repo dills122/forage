@@ -1,23 +1,13 @@
 import { analysisVersion, analyzeRepository } from "@forage/analysis";
-import {
-  cancelImport,
-  completeImport,
-  createImportRunState,
-  failImport,
-  type ImportRunState,
-  importRunStateToEvent,
-  rateLimitImport,
-  recordImportPage,
-} from "@forage/core";
+import type { ImportRunState } from "@forage/core";
 import {
   createForageExport,
   serializeForageExportJson,
   serializeRepositoryAnalysisCsv,
 } from "@forage/reporting";
 import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
-import { analyzeRepositoriesInWorker } from "../lib/analysis-worker";
 import type { SessionResponse } from "../lib/api";
-import { WorkerApi, WorkerApiError } from "../lib/api";
+import { WorkerApi } from "../lib/api";
 import {
   getAllAnalysisResults,
   getAllRepositories,
@@ -25,11 +15,13 @@ import {
   getLocalLibraryProfile,
   type LocalLibraryProfile,
   resetLocalData,
-  saveAnalysisResults,
-  saveImportEvent,
-  saveLocalLibraryProfile,
-  saveRepositories,
 } from "../lib/db";
+import {
+  type ImportWorkerProgressMessage,
+  type ImportWorkerTerminalMessage,
+  type RepositoryImportSession,
+  startRepositoryImport,
+} from "../lib/import-worker";
 
 interface AppState {
   workerOrigin: string;
@@ -84,8 +76,7 @@ const state: AppState = {
 };
 
 let api: WorkerApi;
-let activeImportController: AbortController | null = null;
-let importCancelRequested = false;
+let activeImportSession: RepositoryImportSession | null = null;
 
 function startForageApp() {
   const root = document.querySelector<HTMLElement>("#forage-app");
@@ -193,116 +184,53 @@ async function logout() {
 }
 
 async function importStars() {
+  if (activeImportSession) return;
+
   if (state.localLibraryConflict) {
     state.progress = "This browser already has a local library for another GitHub account.";
     render();
     return;
   }
 
-  const importId = crypto.randomUUID();
-  state.importRun = createImportRunState();
-  activeImportController = new AbortController();
-  importCancelRequested = false;
-  const fieldNames = new Set<string>();
+  state.progress = "Starting import...";
+  render();
 
   try {
-    let page: number | null = 1;
-
-    while (page) {
-      state.progress = getImportProgressText("importing", page);
-      render();
-
-      const result = await api.getStarredPage(page, 100, activeImportController.signal);
-      await saveRepositories(result.repositories);
-      state.progress = getImportProgressText("analyzing", page);
-      render();
-      await saveAnalysisResults(
-        await analyzeRepositoriesInWorker(result.repositories, activeImportController.signal),
-      );
-
-      state.importRun = recordImportPage(state.importRun, {
-        page,
-        repositories: result.repositories.length,
-        rate_limit: result.rate_limit,
-      });
-      for (const fieldName of result.raw_field_names) fieldNames.add(fieldName);
-
-      page = result.next_page;
-    }
-
-    state.importRun = completeImport(state.importRun);
-    await saveLocalLibraryProfile({
-      github_login: state.sessionUser?.login ?? null,
-      github_user_id: state.sessionUser?.id ?? null,
-      repository_count: state.importRun.repositories,
-      updated_at: state.importRun.completed_at ?? new Date().toISOString(),
-    });
-    state.progress = getImportTerminalText(state.importRun);
+    activeImportSession = startRepositoryImport(
+      {
+        workerOrigin: state.workerOrigin,
+        sessionUser: state.sessionUser,
+      },
+      applyImportProgress,
+    );
+    applyImportTerminal(await activeImportSession.done);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Import failed";
-    if (state.importRun?.status === "running") {
-      if (importCancelRequested || isAbortError(error)) {
-        state.importRun = cancelImport(state.importRun);
-      } else if (isRateLimitError(error)) {
-        state.importRun = rateLimitImport(state.importRun, message, error.rateLimit);
-      } else {
-        state.importRun = failImport(state.importRun, message);
-      }
-    }
-    state.progress = state.importRun ? getImportTerminalText(state.importRun) : message;
+    state.progress = error instanceof Error ? error.message : "Import failed.";
   } finally {
-    activeImportController = null;
-    importCancelRequested = false;
+    activeImportSession = null;
   }
 
-  if (state.importRun) {
-    await saveImportEvent(importRunStateToEvent(importId, state.importRun));
-  }
   await refreshState();
-  getElement("observed-fields").textContent = Array.from(fieldNames).sort().join(", ") || "-";
 }
 
 function cancelActiveImport() {
-  if (!activeImportController || state.importRun?.status !== "running") return;
-  importCancelRequested = true;
+  if (!activeImportSession || state.importRun?.status !== "running") return;
   state.progress = "Cancelling import after current work stops...";
-  activeImportController.abort();
+  activeImportSession.cancel();
   render();
 }
 
-function getImportProgressText(phase: "importing" | "analyzing", page: number) {
-  const repositories = state.importRun?.repositories ?? 0;
-  if (phase === "analyzing") {
-    return `Analyzing page ${page} in browser worker after importing ${repositories} repositories...`;
-  }
-  return `Importing page ${page}; ${repositories} repositories stored so far...`;
+function applyImportProgress(message: ImportWorkerProgressMessage) {
+  state.importRun = message.importRun;
+  state.progress = message.message;
+  getElement("observed-fields").textContent = message.observedFieldNames.join(", ") || "-";
+  render();
 }
 
-function getImportTerminalText(importRun: ImportRunState) {
-  if (importRun.status === "completed") {
-    return `Imported ${importRun.repositories} repositories across ${importRun.pages} page(s).`;
-  }
-  if (importRun.status === "cancelled") {
-    return `Import cancelled after ${importRun.pages} page(s) and ${importRun.repositories} repositories.`;
-  }
-  if (importRun.status === "rate_limited") {
-    return `Import paused by GitHub rate limits after ${importRun.pages} page(s). Try again later.`;
-  }
-  if (importRun.status === "failed") {
-    return importRun.errors[0] || "Import failed.";
-  }
-  return "Import running.";
-}
-
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === "AbortError";
-}
-
-function isRateLimitError(error: unknown): error is WorkerApiError {
-  return (
-    error instanceof WorkerApiError &&
-    (error.status === 429 || (error.status === 403 && error.rateLimit?.remaining === "0"))
-  );
+function applyImportTerminal(message: ImportWorkerTerminalMessage) {
+  state.importRun = message.importRun;
+  state.progress = message.message;
+  getElement("observed-fields").textContent = message.observedFieldNames.join(", ") || "-";
 }
 
 async function resetData() {
@@ -396,7 +324,7 @@ function render() {
 
   getElement("connect-link").toggleAttribute("hidden", state.authenticated);
   getElement("logout-button").toggleAttribute("hidden", !state.authenticated);
-  const importRunning = state.importRun?.status === "running";
+  const importRunning = Boolean(activeImportSession) || state.importRun?.status === "running";
   getElement<HTMLButtonElement>("import-button").disabled =
     importRunning || !state.authenticated || state.localLibraryConflict;
   getElement("cancel-import-button").toggleAttribute("hidden", !importRunning);
