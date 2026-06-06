@@ -9,6 +9,9 @@ export default defineConfig({
         "@forage/analysis": fileURLToPath(
           new URL("../../packages/analysis/src/index.ts", import.meta.url),
         ),
+        "@forage/reporting": fileURLToPath(
+          new URL("../../packages/reporting/src/index.ts", import.meta.url),
+        ),
         "@forage/shared": fileURLToPath(
           new URL("../../packages/shared/src/index.ts", import.meta.url),
         ),

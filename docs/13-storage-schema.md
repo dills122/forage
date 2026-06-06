@@ -57,5 +57,6 @@ Current IndexedDB stores:
 
 Current export behavior:
 - Exports are generated on demand.
-- Exports include repositories, latest import event, local library profile, and current analysis results.
+- JSON exports include repositories, latest import event, local library profile, and current analysis results.
+- CSV exports include repository, category, and score fields for spreadsheet review.
 - If stored analysis is missing for a repository, export calculates analysis with the current analysis version.

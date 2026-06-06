@@ -1,4 +1,9 @@
 import { analysisVersion, analyzeRepositories, analyzeRepository } from "@forage/analysis";
+import {
+  createForageExport,
+  serializeForageExportJson,
+  serializeRepositoryAnalysisCsv,
+} from "@forage/reporting";
 import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
 import type { SessionResponse } from "../lib/api";
 import { createImportEvent, WorkerApi } from "../lib/api";
@@ -79,7 +84,12 @@ function bindEvents() {
   getElement<HTMLButtonElement>("logout-button").addEventListener("click", logout);
   getElement<HTMLButtonElement>("import-button").addEventListener("click", importStars);
   getElement<HTMLButtonElement>("reset-button").addEventListener("click", resetData);
-  getElement<HTMLButtonElement>("export-button").addEventListener("click", exportJson);
+  getElement<HTMLButtonElement>("export-button").addEventListener("click", () =>
+    exportData("json"),
+  );
+  getElement<HTMLButtonElement>("export-csv-button").addEventListener("click", () =>
+    exportData("csv"),
+  );
   getElement<HTMLInputElement>("library-search").addEventListener("input", updateLibrarySearch);
   getElement<HTMLSelectElement>("language-filter").addEventListener("change", updateLanguageFilter);
   getElement<HTMLSelectElement>("category-filter").addEventListener("change", updateCategoryFilter);
@@ -190,7 +200,7 @@ async function resetData() {
   await refreshState();
 }
 
-async function exportJson() {
+async function exportData(format: "json" | "csv") {
   const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
     getAllRepositories(),
     getImportEvents(),
@@ -198,8 +208,7 @@ async function exportJson() {
     getLocalLibraryProfile(),
   ]);
   const analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
-  const payload = {
-    exported_at: new Date().toISOString(),
+  const payload = createForageExport({
     repositories,
     analysis_results: repositories.map(
       (repository) =>
@@ -207,14 +216,28 @@ async function exportJson() {
     ),
     latest_import_event: events[0] ?? null,
     local_library_profile: localLibraryProfile,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
+  });
+  const isJson = format === "json";
+  const contents = isJson
+    ? serializeForageExportJson(payload)
+    : serializeRepositoryAnalysisCsv(payload);
+  const mimeType = isJson ? "application/json" : "text/csv";
+  const extension = isJson ? "json" : "csv";
+  downloadText(
+    contents,
+    mimeType,
+    `forage-export-${new Date().toISOString().slice(0, 10)}.${extension}`,
+  );
+}
+
+function downloadText(contents: string, mimeType: string, filename: string) {
+  const blob = new Blob([contents], {
+    type: mimeType,
   });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `forage-export-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -265,6 +288,7 @@ function render() {
   getElement<HTMLButtonElement>("import-button").disabled =
     !state.authenticated || state.localLibraryConflict;
   getElement<HTMLButtonElement>("export-button").disabled = state.repositoryCount === 0;
+  getElement<HTMLButtonElement>("export-csv-button").disabled = state.repositoryCount === 0;
   getElement<HTMLButtonElement>("reset-button").disabled = state.repositoryCount === 0;
   getElement("local-library-notice").toggleAttribute("hidden", state.repositoryCount === 0);
 
