@@ -25,6 +25,7 @@ This directory contains the planning and technical decision material for Forage.
 - [Pre-MVP Spike Findings](./15-pre-mvp-spike-findings.md)
 - [Implementation Readiness](./16-implementation-readiness.md)
 - [CI And Quality Gates](./17-ci-and-quality-gates.md)
+- [Analysis Review](./18-analysis-review.md)
 
 ## Architecture Decisions
 
