@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { analysisVersion, analyzeRepository } from "@forage/analysis";
+  import { analyzeRepository } from "@forage/analysis";
   import type { ImportRunState } from "@forage/core";
   import {
     createForageExport,
@@ -7,9 +7,12 @@
     serializeRepositoryAnalysisCsv,
   } from "@forage/reporting";
   import type { ApplicationSettings, ForageRepository, RepositoryAnalysis } from "@forage/shared";
-  import { Download, FileSpreadsheet, LogOut, Moon, RefreshCw, Sun, Trash2, X } from "@lucide/svelte";
+  import { LogOut, Moon, Sun } from "@lucide/svelte";
   import { onMount } from "svelte";
-  import AdvancedDetails from "./AdvancedDetails.svelte";
+  import ImportPanel from "./ImportPanel.svelte";
+  import LibraryFilters from "./LibraryFilters.svelte";
+  import MetricGrid from "./MetricGrid.svelte";
+  import RepositoryList from "./RepositoryList.svelte";
   import type { SessionResponse, WorkerConfig } from "../lib/api";
   import { WorkerApi } from "../lib/api";
   import {
@@ -26,6 +29,16 @@
     type RepositoryImportSession,
     startRepositoryImport,
   } from "../lib/import-worker";
+  import {
+    createCurrentAnalysisMap,
+    filterRepositories,
+    getCategoryOptions,
+    getLanguageOptions,
+    getLibrarySummary,
+    getTopLanguage,
+    type LibrarySortMode,
+    sortRepositoriesByStarredAt,
+  } from "../lib/library";
 
   interface AppState {
     workerOrigin: string;
@@ -49,7 +62,7 @@
     searchQuery: string;
     languageFilter: string;
     categoryFilter: string;
-    sortMode: "starred_at_desc" | "score_desc" | "stars_desc" | "name_asc";
+    sortMode: LibrarySortMode;
     importRun: ImportRunState | null;
     observedFields: string;
   }
@@ -66,31 +79,24 @@
   let state: AppState = createInitialState(workerOrigin);
 
   $: importRunning = Boolean(activeImportSession) || state.importRun?.status === "running";
-  $: filteredRepositories = getFilteredRepositories(
+  $: filteredRepositories = filterRepositories(
     state.repositories,
-    state.searchQuery,
-    state.languageFilter,
-    state.categoryFilter,
-    state.sortMode,
+    {
+      searchQuery: state.searchQuery,
+      languageFilter: state.languageFilter,
+      categoryFilter: state.categoryFilter,
+      sortMode: state.sortMode,
+    },
     state.analysisByRepositoryId,
   );
   $: visibleRepositories = filteredRepositories.slice(0, 24);
-  $: librarySummary =
-    state.repositoryCount > 0
-      ? `${visibleRepositories.length} shown of ${filteredRepositories.length} matched`
-      : "No repositories stored";
-  $: languages = [
-    ...new Set(state.repositories.map((repository) => repository.primary_language || "Unknown")),
-  ].sort();
-  $: categories = [
-    ...new Set(
-      state.repositories.flatMap((repository) =>
-        getRepositoryAnalysis(repository, state.analysisByRepositoryId).categories.map(
-          (category) => category.label,
-        ),
-      ),
-    ),
-  ].sort();
+  $: librarySummary = getLibrarySummary(
+    state.repositoryCount,
+    visibleRepositories.length,
+    filteredRepositories.length,
+  );
+  $: languages = getLanguageOptions(state.repositories);
+  $: categories = getCategoryOptions(state.repositories, state.analysisByRepositoryId);
 
   onMount(() => {
     api = new WorkerApi(state.workerOrigin);
@@ -184,7 +190,7 @@
         sessionStatus: session.authenticated ? "Authenticated" : session.error || "Disconnected",
         repositoryCount: repositories.length,
         latestImport: events[0] ? `${events[0].status} (${events[0].repositories})` : "-",
-        repositories: sortRepositories(repositories),
+        repositories: sortRepositoriesByStarredAt(repositories),
         analysisByRepositoryId: createCurrentAnalysisMap(analysisResults),
         topLanguage: getTopLanguage(repositories),
         localLibraryProfile,
@@ -317,10 +323,18 @@
     URL.revokeObjectURL(url);
   }
 
-  async function updateAnalyticsSetting() {
+  async function updateAnalyticsSetting(analyticsEnabled: boolean) {
+    const previousSettings = state.settings;
+    patchState({
+      settings: {
+        ...state.settings,
+        analytics_enabled: analyticsEnabled,
+      },
+    });
+
     try {
       const response = await api.updateSettings({
-        analytics_enabled: state.settings.analytics_enabled,
+        analytics_enabled: analyticsEnabled,
       });
       patchState({
         settings: response.settings,
@@ -329,94 +343,11 @@
       });
     } catch (error) {
       patchState({
+        settings: previousSettings,
         progress: error instanceof Error ? error.message : "Settings update failed.",
       });
       await refreshState();
     }
-  }
-
-  function sortRepositories(repositories: ForageRepository[]) {
-    return [...repositories].sort((left, right) => right.starred_at.localeCompare(left.starred_at));
-  }
-
-  function getFilteredRepositories(
-    repositories: ForageRepository[],
-    searchQuery: string,
-    languageFilter: string,
-    categoryFilter: string,
-    sortMode: AppState["sortMode"],
-    analysisByRepositoryId: Map<number, RepositoryAnalysis>,
-  ) {
-    const query = searchQuery.trim().toLowerCase();
-    return sortVisibleRepositories(
-      repositories.filter((repository) => {
-        const analysis = getRepositoryAnalysis(repository, analysisByRepositoryId);
-        const language = repository.primary_language || "Unknown";
-        const categoryLabels = analysis.categories.map((category) => category.label);
-        const searchableText = [
-          repository.full_name,
-          repository.description ?? "",
-          language,
-          ...repository.topics,
-          ...categoryLabels,
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return (
-          (!query || searchableText.includes(query)) &&
-          (!languageFilter || language === languageFilter) &&
-          (!categoryFilter || categoryLabels.includes(categoryFilter))
-        );
-      }),
-      sortMode,
-      analysisByRepositoryId,
-    );
-  }
-
-  function sortVisibleRepositories(
-    repositories: ForageRepository[],
-    sortMode: AppState["sortMode"],
-    analysisByRepositoryId: Map<number, RepositoryAnalysis>,
-  ) {
-    return [...repositories].sort((left, right) => {
-      if (sortMode === "score_desc") {
-        return (
-          getRepositoryAnalysis(right, analysisByRepositoryId).scores.overall.value -
-          getRepositoryAnalysis(left, analysisByRepositoryId).scores.overall.value
-        );
-      }
-      if (sortMode === "stars_desc") return right.stars - left.stars;
-      if (sortMode === "name_asc") return left.full_name.localeCompare(right.full_name);
-      return right.starred_at.localeCompare(left.starred_at);
-    });
-  }
-
-  function getRepositoryAnalysis(
-    repository: ForageRepository,
-    analysisByRepositoryId = state.analysisByRepositoryId,
-  ) {
-    return analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository);
-  }
-
-  function getTopLanguage(repositories: ForageRepository[]) {
-    const counts = new Map<string, number>();
-    for (const repository of repositories) {
-      const language = repository.primary_language || "Unknown";
-      counts.set(language, (counts.get(language) ?? 0) + 1);
-    }
-
-    const [language, count] =
-      [...counts.entries()].sort((left, right) => right[1] - left[1])[0] ?? [];
-    return language && count ? `${language} (${count})` : "-";
-  }
-
-  function createCurrentAnalysisMap(results: RepositoryAnalysis[]) {
-    return new Map(
-      results
-        .filter((result) => result.analysis_version === analysisVersion)
-        .map((result) => [result.repository_id, result]),
-    );
   }
 
   function getConfigStatus(config: Pick<WorkerConfig, "has_github_client_id" | "has_github_client_secret"> & {
@@ -497,13 +428,6 @@
     return `This browser has local data for ${state.localLibraryOwner}. Connect GitHub when you want to refresh imports.`;
   }
 
-  function formatDate(value: string) {
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }).format(new Date(value));
-  }
 </script>
 
 <main class="shell" id="forage-app" data-worker-origin={state.workerOrigin}>
@@ -547,24 +471,13 @@
     </div>
   </header>
 
-  <section class="metric-grid" aria-label="Library status">
-    <article class="metric-panel">
-      <span class="metric-label">Stored repos</span>
-      <strong id="repository-count">{state.repositoryCount}</strong>
-    </article>
-    <article class="metric-panel">
-      <span class="metric-label">Top language</span>
-      <strong id="top-language">{state.topLanguage}</strong>
-    </article>
-    <article class="metric-panel">
-      <span class="metric-label">Latest import</span>
-      <strong id="latest-import">{state.latestImport}</strong>
-    </article>
-    <article class="metric-panel">
-      <span class="metric-label">GitHub user</span>
-      <strong id="github-user" class:muted-value={!state.authenticated}>{state.user}</strong>
-    </article>
-  </section>
+  <MetricGrid
+    repositoryCount={state.repositoryCount}
+    topLanguage={state.topLanguage}
+    latestImport={state.latestImport}
+    user={state.user}
+    authenticated={state.authenticated}
+  />
 
   {#if state.repositoryCount > 0}
     <section id="local-library-notice" class="notice" class:warning={state.localLibraryConflict}>
@@ -574,93 +487,26 @@
   {/if}
 
   <section class="workspace-grid">
-    <section class="panel import-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="section-kicker">Import</p>
-          <h2>Refresh your starred repository library.</h2>
-        </div>
-        <span id="config-status" class="status-pill">{state.configStatus}</span>
-      </div>
-      <p id="progress-text" class="progress-text">{state.progress}</p>
-      <div class="actions">
-        <button
-          id="import-button"
-          class="button"
-          type="button"
-          disabled={importRunning || !state.authenticated || state.localLibraryConflict}
-          onclick={importStars}
-        >
-          <RefreshCw size={16} aria-hidden="true" />
-          Import Stars
-        </button>
-        {#if importRunning}
-          <button
-            id="cancel-import-button"
-            class="button secondary"
-            type="button"
-            onclick={cancelActiveImport}
-          >
-            <X size={16} aria-hidden="true" />
-            Cancel Import
-          </button>
-        {/if}
-        <button
-          id="export-button"
-          class="button secondary"
-          type="button"
-          disabled={importRunning || state.repositoryCount === 0}
-          onclick={() => exportData("json")}
-        >
-          <Download size={16} aria-hidden="true" />
-          Export JSON
-        </button>
-        <button
-          id="export-csv-button"
-          class="button secondary"
-          type="button"
-          disabled={importRunning || state.repositoryCount === 0}
-          onclick={() => exportData("csv")}
-        >
-          <FileSpreadsheet size={16} aria-hidden="true" />
-          Export CSV
-        </button>
-        <button
-          id="reset-button"
-          class="button danger"
-          type="button"
-          disabled={importRunning || state.repositoryCount === 0}
-          onclick={resetData}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-          Reset Local Data
-        </button>
-      </div>
-
-      <div class="settings-row">
-        <label class="setting-toggle">
-          <input
-            id="analytics-toggle"
-            type="checkbox"
-            bind:checked={state.settings.analytics_enabled}
-            disabled={!state.authenticated}
-            onchange={updateAnalyticsSetting}
-          />
-          <span>
-            <strong>Share anonymous product analytics</strong>
-            <small id="analytics-status">{state.settingsStatus}</small>
-          </span>
-        </label>
-      </div>
-
-      <AdvancedDetails
-        workerOrigin={state.workerOrigin}
-        sessionStatus={state.sessionStatus}
-        localLibraryOwner={state.localLibraryOwner}
-        localLibraryStatus={state.localLibraryStatus}
-        observedFields={state.observedFields}
-      />
-    </section>
+    <ImportPanel
+      configStatus={state.configStatus}
+      progress={state.progress}
+      {importRunning}
+      authenticated={state.authenticated}
+      localLibraryConflict={state.localLibraryConflict}
+      repositoryCount={state.repositoryCount}
+      settings={state.settings}
+      settingsStatus={state.settingsStatus}
+      workerOrigin={state.workerOrigin}
+      sessionStatus={state.sessionStatus}
+      localLibraryOwner={state.localLibraryOwner}
+      localLibraryStatus={state.localLibraryStatus}
+      observedFields={state.observedFields}
+      onImport={importStars}
+      onCancelImport={cancelActiveImport}
+      onExport={exportData}
+      onReset={resetData}
+      onAnalyticsChange={updateAnalyticsSetting}
+    />
   </section>
 
   <section class="panel library-panel">
@@ -671,93 +517,19 @@
       </div>
       <span id="library-summary" class="status-pill">{librarySummary}</span>
     </div>
-    <div class="library-controls" aria-label="Library controls">
-      <label>
-        <span>Search</span>
-        <input
-          id="library-search"
-          type="search"
-          placeholder="Repo, topic, description"
-          bind:value={state.searchQuery}
-        />
-      </label>
-      <label>
-        <span>Language</span>
-        <select id="language-filter" bind:value={state.languageFilter}>
-          <option value="">All languages</option>
-          {#each languages as language}
-            <option value={language}>{language}</option>
-          {/each}
-        </select>
-      </label>
-      <label>
-        <span>Category</span>
-        <select id="category-filter" bind:value={state.categoryFilter}>
-          <option value="">All categories</option>
-          {#each categories as category}
-            <option value={category}>{category}</option>
-          {/each}
-        </select>
-      </label>
-      <label>
-        <span>Sort</span>
-        <select id="library-sort" bind:value={state.sortMode}>
-          <option value="starred_at_desc">Recently starred</option>
-          <option value="score_desc">Highest score</option>
-          <option value="stars_desc">Most stars</option>
-          <option value="name_asc">Name</option>
-        </select>
-      </label>
-    </div>
-    {#if state.repositoryCount === 0}
-      <div id="library-empty" class="empty-state">
-        Connect GitHub and import stars to build the local library.
-      </div>
-    {:else if filteredRepositories.length === 0}
-      <div id="library-empty" class="empty-state">No repositories match the current filters.</div>
-    {/if}
-    <div id="repo-list" class="repo-list" aria-live="polite">
-      {#each visibleRepositories as repository (repository.github_id)}
-        {@const analysis = getRepositoryAnalysis(repository)}
-        <article class="repo-row">
-          <div class="repo-main">
-            <a href={repository.url} target="_blank" rel="noreferrer" class="repo-title">
-              {repository.full_name}
-            </a>
-            <p class="repo-description">{repository.description || "No description provided."}</p>
-            <div class="topic-row">
-              {#each repository.topics.slice(0, 4) as topicName}
-                <span class="topic">{topicName}</span>
-              {/each}
-            </div>
-          </div>
-
-          <div class="repo-meta">
-            <span class="meta-value">
-              <strong>{analysis.scores.overall.value}</strong>
-              <small>Score</small>
-            </span>
-            <span class="meta-value">
-              <strong>{repository.primary_language || "Unknown"}</strong>
-              <small>Language</small>
-            </span>
-            <span class="meta-value">
-              <strong>{repository.stars.toLocaleString()}</strong>
-              <small>Stars</small>
-            </span>
-            <span class="meta-value">
-              <strong>{formatDate(repository.starred_at)}</strong>
-              <small>Starred</small>
-            </span>
-          </div>
-
-          <div class="category-row">
-            {#each analysis.categories.slice(0, 3) as categoryMatch}
-              <span class="category">{categoryMatch.label}</span>
-            {/each}
-          </div>
-        </article>
-      {/each}
-    </div>
+    <LibraryFilters
+      bind:searchQuery={state.searchQuery}
+      bind:languageFilter={state.languageFilter}
+      bind:categoryFilter={state.categoryFilter}
+      bind:sortMode={state.sortMode}
+      {languages}
+      {categories}
+    />
+    <RepositoryList
+      repositoryCount={state.repositoryCount}
+      {filteredRepositories}
+      {visibleRepositories}
+      analysisByRepositoryId={state.analysisByRepositoryId}
+    />
   </section>
 </main>
