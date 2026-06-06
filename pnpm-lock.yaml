@@ -27,6 +27,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@forage/github':
+        specifier: workspace:*
+        version: link:../../packages/github
       '@forage/shared':
         specifier: workspace:*
         version: link:../../packages/shared

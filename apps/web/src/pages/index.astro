@@ -1,40 +1,102 @@
 ---
 import AppShell from "../layouts/AppShell.astro";
-import StatusPanel from "../components/StatusPanel.astro";
 
-const implementationItems = [
-  { label: "Auth", value: "GitHub App user authorization" },
-  { label: "Repository data", value: "Browser-local IndexedDB" },
-  { label: "Server storage", value: "Auth, session, settings, preferences only" },
-  { label: "Analysis", value: "Local browser worker" },
-];
-
-const milestoneItems = [
-  { label: "Current milestone", value: "Real app scaffold" },
-  { label: "Next milestone", value: "Move proven import flow into real boundaries" },
-  { label: "Reference", value: "apps/pre-mvp" },
-  { label: "Status", value: "Ready for implementation slice" },
-];
+const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8787";
 ---
 
 <AppShell title="Forage">
-  <main class="shell">
-    <section class="masthead">
-      <p class="eyebrow">Forage</p>
-      <h1>GitHub stars worth finding again.</h1>
-      <p class="lede">
-        The real app shell is ready. The next slice moves the proven GitHub import,
-        local storage, and worker analysis flow into this production-shaped Astro app.
-      </p>
-      <div class="actions">
-        <a href="/api/health" class="button">Worker Health</a>
-        <a href="/api/config" class="button secondary">Worker Config</a>
+  <main class="shell" id="forage-app" data-worker-origin={workerOrigin}>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Forage</p>
+        <h1>Starred repos, ready to sort through.</h1>
       </div>
+      <div class="topbar-actions">
+        <span id="session-badge" class="status-badge neutral">Checking session</span>
+        <a id="connect-link" href={workerOrigin + "/auth/github"} class="button">Connect GitHub</a>
+        <button id="logout-button" class="button secondary" type="button" hidden>Logout</button>
+      </div>
+    </header>
+
+    <section class="metric-grid" aria-label="Library status">
+      <article class="metric-panel">
+        <span class="metric-label">Stored repos</span>
+        <strong id="repository-count">0</strong>
+      </article>
+      <article class="metric-panel">
+        <span class="metric-label">Top language</span>
+        <strong id="top-language">-</strong>
+      </article>
+      <article class="metric-panel">
+        <span class="metric-label">Latest import</span>
+        <strong id="latest-import">-</strong>
+      </article>
+      <article class="metric-panel">
+        <span class="metric-label">GitHub user</span>
+        <strong id="github-user">-</strong>
+      </article>
     </section>
 
-    <section class="grid">
-      <StatusPanel title="Architecture" items={implementationItems} />
-      <StatusPanel title="Milestone" items={milestoneItems} />
+    <section class="workspace-grid">
+      <section class="panel import-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Import</p>
+            <h2>Refresh your starred repository library.</h2>
+          </div>
+          <span id="config-status" class="status-pill">Checking config</span>
+        </div>
+        <p id="progress-text" class="progress-text">Ready.</p>
+        <div class="actions">
+          <button id="import-button" class="button" type="button" disabled>Import Stars</button>
+          <button id="export-button" class="button secondary" type="button" disabled>Export JSON</button>
+          <button id="reset-button" class="button danger" type="button" disabled>Reset Local Data</button>
+        </div>
+      </section>
+
+      <section class="panel diagnostics-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Connection</p>
+            <h2>Runtime details</h2>
+          </div>
+        </div>
+        <dl class="detail-list">
+          <dt>Worker</dt>
+          <dd id="worker-origin">{workerOrigin}</dd>
+          <dt>Session</dt>
+          <dd id="session-status">Checking</dd>
+        </dl>
+        <details class="diagnostics">
+          <summary>Diagnostics</summary>
+          <dl class="detail-list">
+            <dt>Repository data</dt>
+            <dd>Browser-local IndexedDB</dd>
+            <dt>Server storage</dt>
+            <dd>Auth, session, settings, preferences only</dd>
+            <dt>Observed fields</dt>
+            <dd id="observed-fields">Run an import to capture raw GitHub fields.</dd>
+          </dl>
+        </details>
+      </section>
+    </section>
+
+    <section class="panel library-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Library</p>
+          <h2>Recent stars</h2>
+        </div>
+        <span id="library-summary" class="status-pill">No repositories stored</span>
+      </div>
+      <div id="library-empty" class="empty-state">
+        Connect GitHub and import stars to build the local library.
+      </div>
+      <div id="repo-list" class="repo-list" aria-live="polite"></div>
     </section>
   </main>
+
+  <script>
+    import "../scripts/app";
+  </script>
 </AppShell>

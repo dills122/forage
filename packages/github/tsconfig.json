@@ -1,8 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@forage/shared": ["../shared/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@forage/github": "workspace:*",
     "@forage/shared": "workspace:*"
   },
   "devDependencies": {
