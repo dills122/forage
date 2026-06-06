@@ -21,7 +21,10 @@ export interface AnalyzeRepositoriesFailure {
 export type AnalysisWorkerRequest = AnalyzeRepositoriesRequest;
 export type AnalysisWorkerResponse = AnalyzeRepositoriesSuccess | AnalyzeRepositoriesFailure;
 
-export function analyzeRepositoriesInWorker(repositories: ForageRepository[]) {
+export function analyzeRepositoriesInWorker(
+  repositories: ForageRepository[],
+  signal?: AbortSignal,
+) {
   if (repositories.length === 0) return Promise.resolve([]);
 
   const request: AnalyzeRepositoriesRequest = {
@@ -34,9 +37,21 @@ export function analyzeRepositoriesInWorker(repositories: ForageRepository[]) {
     const worker = new Worker(new URL("../workers/analysis.worker.ts", import.meta.url), {
       type: "module",
     });
+    const abort = () => {
+      worker.terminate();
+      reject(new DOMException("Analysis cancelled.", "AbortError"));
+    };
+
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+
+    signal?.addEventListener("abort", abort, { once: true });
 
     worker.addEventListener("message", (event: MessageEvent<AnalysisWorkerResponse>) => {
       if (event.data.id !== request.id) return;
+      signal?.removeEventListener("abort", abort);
       worker.terminate();
 
       if (event.data.type === "analyze-repositories:success") {
@@ -48,6 +63,7 @@ export function analyzeRepositoriesInWorker(repositories: ForageRepository[]) {
     });
 
     worker.addEventListener("error", (event) => {
+      signal?.removeEventListener("abort", abort);
       worker.terminate();
       reject(new Error(event.message || "Analysis worker failed."));
     });

@@ -1,5 +1,15 @@
 import { analysisVersion, analyzeRepository } from "@forage/analysis";
 import {
+  cancelImport,
+  completeImport,
+  createImportRunState,
+  failImport,
+  type ImportRunState,
+  importRunStateToEvent,
+  rateLimitImport,
+  recordImportPage,
+} from "@forage/core";
+import {
   createForageExport,
   serializeForageExportJson,
   serializeRepositoryAnalysisCsv,
@@ -7,7 +17,7 @@ import {
 import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
 import { analyzeRepositoriesInWorker } from "../lib/analysis-worker";
 import type { SessionResponse } from "../lib/api";
-import { createImportEvent, WorkerApi } from "../lib/api";
+import { WorkerApi, WorkerApiError } from "../lib/api";
 import {
   getAllAnalysisResults,
   getAllRepositories,
@@ -42,6 +52,7 @@ interface AppState {
   languageFilter: string;
   categoryFilter: string;
   sortMode: "starred_at_desc" | "score_desc" | "stars_desc" | "name_asc";
+  importRun: ImportRunState | null;
 }
 
 type Theme = "light" | "dark";
@@ -69,9 +80,12 @@ const state: AppState = {
   languageFilter: "",
   categoryFilter: "",
   sortMode: "starred_at_desc",
+  importRun: null,
 };
 
 let api: WorkerApi;
+let activeImportController: AbortController | null = null;
+let importCancelRequested = false;
 
 function startForageApp() {
   const root = document.querySelector<HTMLElement>("#forage-app");
@@ -89,6 +103,10 @@ function bindEvents() {
   getElement<HTMLAnchorElement>("connect-link").href = api.connectUrl();
   getElement<HTMLButtonElement>("logout-button").addEventListener("click", logout);
   getElement<HTMLButtonElement>("import-button").addEventListener("click", importStars);
+  getElement<HTMLButtonElement>("cancel-import-button").addEventListener(
+    "click",
+    cancelActiveImport,
+  );
   getElement<HTMLButtonElement>("reset-button").addEventListener("click", resetData);
   getElement<HTMLButtonElement>("export-button").addEventListener("click", () =>
     exportData("json"),
@@ -181,49 +199,110 @@ async function importStars() {
     return;
   }
 
-  const event = createImportEvent();
+  const importId = crypto.randomUUID();
+  state.importRun = createImportRunState();
+  activeImportController = new AbortController();
+  importCancelRequested = false;
   const fieldNames = new Set<string>();
 
   try {
     let page: number | null = 1;
 
     while (page) {
-      state.progress = `Importing page ${page}...`;
+      state.progress = getImportProgressText("importing", page);
       render();
 
-      const result = await api.getStarredPage(page);
+      const result = await api.getStarredPage(page, 100, activeImportController.signal);
       await saveRepositories(result.repositories);
-      state.progress = `Analyzing page ${page} in browser worker...`;
+      state.progress = getImportProgressText("analyzing", page);
       render();
-      await saveAnalysisResults(await analyzeRepositoriesInWorker(result.repositories));
+      await saveAnalysisResults(
+        await analyzeRepositoriesInWorker(result.repositories, activeImportController.signal),
+      );
 
-      event.pages += 1;
-      event.repositories += result.repositories.length;
-      event.rate_limits.push(result.rate_limit);
+      state.importRun = recordImportPage(state.importRun, {
+        page,
+        repositories: result.repositories.length,
+        rate_limit: result.rate_limit,
+      });
       for (const fieldName of result.raw_field_names) fieldNames.add(fieldName);
 
       page = result.next_page;
     }
 
-    event.status = "completed";
-    event.completed_at = new Date().toISOString();
+    state.importRun = completeImport(state.importRun);
     await saveLocalLibraryProfile({
       github_login: state.sessionUser?.login ?? null,
       github_user_id: state.sessionUser?.id ?? null,
-      repository_count: event.repositories,
-      updated_at: event.completed_at,
+      repository_count: state.importRun.repositories,
+      updated_at: state.importRun.completed_at ?? new Date().toISOString(),
     });
-    state.progress = `Imported ${event.repositories} repositories across ${event.pages} page(s).`;
+    state.progress = getImportTerminalText(state.importRun);
   } catch (error) {
-    event.status = "failed";
-    event.completed_at = new Date().toISOString();
-    event.errors.push(error instanceof Error ? error.message : "Import failed");
-    state.progress = event.errors[0] || "Import failed.";
+    const message = error instanceof Error ? error.message : "Import failed";
+    if (state.importRun?.status === "running") {
+      if (importCancelRequested || isAbortError(error)) {
+        state.importRun = cancelImport(state.importRun);
+      } else if (isRateLimitError(error)) {
+        state.importRun = rateLimitImport(state.importRun, message, error.rateLimit);
+      } else {
+        state.importRun = failImport(state.importRun, message);
+      }
+    }
+    state.progress = state.importRun ? getImportTerminalText(state.importRun) : message;
+  } finally {
+    activeImportController = null;
+    importCancelRequested = false;
   }
 
-  await saveImportEvent(event);
+  if (state.importRun) {
+    await saveImportEvent(importRunStateToEvent(importId, state.importRun));
+  }
   await refreshState();
   getElement("observed-fields").textContent = Array.from(fieldNames).sort().join(", ") || "-";
+}
+
+function cancelActiveImport() {
+  if (!activeImportController || state.importRun?.status !== "running") return;
+  importCancelRequested = true;
+  state.progress = "Cancelling import after current work stops...";
+  activeImportController.abort();
+  render();
+}
+
+function getImportProgressText(phase: "importing" | "analyzing", page: number) {
+  const repositories = state.importRun?.repositories ?? 0;
+  if (phase === "analyzing") {
+    return `Analyzing page ${page} in browser worker after importing ${repositories} repositories...`;
+  }
+  return `Importing page ${page}; ${repositories} repositories stored so far...`;
+}
+
+function getImportTerminalText(importRun: ImportRunState) {
+  if (importRun.status === "completed") {
+    return `Imported ${importRun.repositories} repositories across ${importRun.pages} page(s).`;
+  }
+  if (importRun.status === "cancelled") {
+    return `Import cancelled after ${importRun.pages} page(s) and ${importRun.repositories} repositories.`;
+  }
+  if (importRun.status === "rate_limited") {
+    return `Import paused by GitHub rate limits after ${importRun.pages} page(s). Try again later.`;
+  }
+  if (importRun.status === "failed") {
+    return importRun.errors[0] || "Import failed.";
+  }
+  return "Import running.";
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isRateLimitError(error: unknown): error is WorkerApiError {
+  return (
+    error instanceof WorkerApiError &&
+    (error.status === 429 || (error.status === 403 && error.rateLimit?.remaining === "0"))
+  );
 }
 
 async function resetData() {
@@ -317,11 +396,16 @@ function render() {
 
   getElement("connect-link").toggleAttribute("hidden", state.authenticated);
   getElement("logout-button").toggleAttribute("hidden", !state.authenticated);
+  const importRunning = state.importRun?.status === "running";
   getElement<HTMLButtonElement>("import-button").disabled =
-    !state.authenticated || state.localLibraryConflict;
-  getElement<HTMLButtonElement>("export-button").disabled = state.repositoryCount === 0;
-  getElement<HTMLButtonElement>("export-csv-button").disabled = state.repositoryCount === 0;
-  getElement<HTMLButtonElement>("reset-button").disabled = state.repositoryCount === 0;
+    importRunning || !state.authenticated || state.localLibraryConflict;
+  getElement("cancel-import-button").toggleAttribute("hidden", !importRunning);
+  getElement<HTMLButtonElement>("export-button").disabled =
+    importRunning || state.repositoryCount === 0;
+  getElement<HTMLButtonElement>("export-csv-button").disabled =
+    importRunning || state.repositoryCount === 0;
+  getElement<HTMLButtonElement>("reset-button").disabled =
+    importRunning || state.repositoryCount === 0;
   getElement("local-library-notice").toggleAttribute("hidden", state.repositoryCount === 0);
 
   const sessionBadge = getElement("session-badge");

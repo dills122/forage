@@ -35,6 +35,9 @@ importers:
       '@forage/analysis':
         specifier: workspace:*
         version: link:../../packages/analysis
+      '@forage/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@forage/reporting':
         specifier: workspace:*
         version: link:../../packages/reporting
