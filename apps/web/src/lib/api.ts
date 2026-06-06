@@ -1,4 +1,10 @@
-import type { ForageRepository, GitHubRateLimitSnapshot, ImportEvent } from "@forage/shared";
+import type {
+  ApplicationSettings,
+  ApplicationSettingsUpdate,
+  ForageRepository,
+  GitHubRateLimitSnapshot,
+  ImportEvent,
+} from "@forage/shared";
 
 export interface WorkerConfig {
   auth_type: string;
@@ -32,6 +38,12 @@ export interface StarredPageResponse {
   raw_field_names: string[];
 }
 
+export interface SettingsResponse {
+  settings: ApplicationSettings;
+  stores_repository_data: boolean;
+  settings_store: string;
+}
+
 export class WorkerApiError extends Error {
   constructor(
     message: string,
@@ -62,6 +74,14 @@ export class WorkerApi {
     return this.post<{ ok: boolean }>("/api/logout");
   }
 
+  getSettings() {
+    return this.get<SettingsResponse>("/api/settings");
+  }
+
+  updateSettings(settings: ApplicationSettingsUpdate) {
+    return this.put<SettingsResponse>("/api/settings", settings);
+  }
+
   getStarredPage(page: number, perPage = 100, signal?: AbortSignal) {
     const params = new URLSearchParams({
       page: String(page),
@@ -76,6 +96,16 @@ export class WorkerApi {
 
   private post<T>(path: string) {
     return this.request<T>(path, { method: "POST" });
+  }
+
+  private put<T>(path: string, body: unknown) {
+    return this.request<T>(path, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {

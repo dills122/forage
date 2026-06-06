@@ -99,6 +99,19 @@ const workerOrigin = import.meta.env.PUBLIC_WORKER_ORIGIN ?? "http://127.0.0.1:8
           <dt>Local owner</dt>
           <dd id="local-owner">Checking</dd>
         </dl>
+        <div class="settings-block">
+          <div>
+            <p class="section-kicker">Settings</p>
+            <h2>Privacy preferences</h2>
+          </div>
+          <label class="setting-toggle">
+            <input id="analytics-toggle" type="checkbox" disabled />
+            <span>
+              <strong>Share anonymous product analytics</strong>
+              <small id="analytics-status">Connect GitHub to manage this setting.</small>
+            </span>
+          </label>
+        </div>
         <details class="diagnostics">
           <summary>Diagnostics</summary>
           <dl class="detail-list">

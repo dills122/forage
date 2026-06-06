@@ -55,6 +55,14 @@ Current IndexedDB stores:
   - Key: `id`
   - Current record: `local-library-profile`
 
+Current server settings behavior:
+- `GET /api/settings` returns the authenticated session's settings.
+- `PUT /api/settings` updates the authenticated session's settings.
+- `analytics_enabled` defaults to `false`.
+- If `SETTINGS_KV` is bound, settings persist in Cloudflare KV under a salted SHA-256 GitHub user id hash.
+- If `SETTINGS_KV` is not bound, settings use `in-memory-dev` session storage for local development.
+- `SETTINGS_HASH_SALT` should be set in deployed environments; the Worker falls back to `GITHUB_CLIENT_SECRET` when no dedicated salt is configured.
+
 Current export behavior:
 - Exports are generated on demand.
 - JSON exports include repositories, latest import event, local library profile, and current analysis results.

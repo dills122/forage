@@ -359,6 +359,46 @@ h2 {
   padding-top: 14px;
 }
 
+.settings-block {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.setting-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: var(--text);
+}
+
+.setting-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--primary);
+}
+
+.setting-toggle strong,
+.setting-toggle small {
+  display: block;
+}
+
+.setting-toggle strong {
+  font-size: 0.94rem;
+  line-height: 1.25;
+}
+
+.setting-toggle small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .diagnostics summary {
   color: var(--category-text);
   cursor: pointer;
