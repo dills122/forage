@@ -29,6 +29,11 @@ Import stages:
 - Emit progress to the UI
 - Report completion, cancellation, partial failure, or rate limit status
 
+Import state contract:
+- `packages/core` owns the pure import run state helpers.
+- Current terminal states are `completed`, `failed`, `cancelled`, and `rate_limited`.
+- The web app still needs to wire this contract into the visible import flow.
+
 Browser Web Worker responsibilities:
 - Current app analyzes imported repository pages in a browser worker.
 - Import pagination/orchestration remains on the app thread until the import state machine is split out.
