@@ -7,7 +7,9 @@
     serializeRepositoryAnalysisCsv,
   } from "@forage/reporting";
   import type { ApplicationSettings, ForageRepository, RepositoryAnalysis } from "@forage/shared";
+  import { Download, FileSpreadsheet, LogOut, Moon, RefreshCw, Sun, Trash2, X } from "@lucide/svelte";
   import { onMount } from "svelte";
+  import AdvancedDetails from "./AdvancedDetails.svelte";
   import type { SessionResponse } from "../lib/api";
   import { WorkerApi } from "../lib/api";
   import {
@@ -497,6 +499,11 @@
         <span class="theme-toggle-track" aria-hidden="true">
           <span class="theme-toggle-thumb"></span>
         </span>
+        {#if isDarkTheme}
+          <Moon size={16} aria-hidden="true" />
+        {:else}
+          <Sun size={16} aria-hidden="true" />
+        {/if}
         <span id="theme-toggle-label">{themeLabel}</span>
       </button>
       <span id="session-badge" class:success={state.authenticated} class="status-badge">
@@ -508,6 +515,7 @@
         </a>
       {:else}
         <button id="logout-button" class="button secondary" type="button" onclick={logout}>
+          <LogOut size={16} aria-hidden="true" />
           Logout
         </button>
       {/if}
@@ -558,6 +566,7 @@
           disabled={importRunning || !state.authenticated || state.localLibraryConflict}
           onclick={importStars}
         >
+          <RefreshCw size={16} aria-hidden="true" />
           Import Stars
         </button>
         {#if importRunning}
@@ -567,6 +576,7 @@
             type="button"
             onclick={cancelActiveImport}
           >
+            <X size={16} aria-hidden="true" />
             Cancel Import
           </button>
         {/if}
@@ -577,6 +587,7 @@
           disabled={importRunning || state.repositoryCount === 0}
           onclick={() => exportData("json")}
         >
+          <Download size={16} aria-hidden="true" />
           Export JSON
         </button>
         <button
@@ -586,6 +597,7 @@
           disabled={importRunning || state.repositoryCount === 0}
           onclick={() => exportData("csv")}
         >
+          <FileSpreadsheet size={16} aria-hidden="true" />
           Export CSV
         </button>
         <button
@@ -595,6 +607,7 @@
           disabled={importRunning || state.repositoryCount === 0}
           onclick={resetData}
         >
+          <Trash2 size={16} aria-hidden="true" />
           Reset Local Data
         </button>
       </div>
@@ -615,33 +628,13 @@
         </label>
       </div>
 
-      <details class="advanced-details">
-        <summary>Runtime and diagnostics</summary>
-        <div class="advanced-details-grid">
-          <div>
-            <p class="section-kicker">Connection</p>
-            <dl class="detail-list compact">
-              <dt>Worker</dt>
-              <dd id="worker-origin">{state.workerOrigin}</dd>
-              <dt>Session</dt>
-              <dd id="session-status">{state.sessionStatus}</dd>
-              <dt>Local owner</dt>
-              <dd id="local-owner">{state.localLibraryOwner}</dd>
-            </dl>
-          </div>
-          <div>
-            <p class="section-kicker">Diagnostics</p>
-            <dl class="detail-list compact">
-              <dt>Repository data</dt>
-              <dd id="repository-storage-status">{state.localLibraryStatus}</dd>
-              <dt>Server storage</dt>
-              <dd>Auth, session, settings, preferences only</dd>
-              <dt>Observed fields</dt>
-              <dd id="observed-fields">{state.observedFields}</dd>
-            </dl>
-          </div>
-        </div>
-      </details>
+      <AdvancedDetails
+        workerOrigin={state.workerOrigin}
+        sessionStatus={state.sessionStatus}
+        localLibraryOwner={state.localLibraryOwner}
+        localLibraryStatus={state.localLibraryStatus}
+        observedFields={state.observedFields}
+      />
     </section>
   </section>
 

@@ -217,6 +217,7 @@ h2 {
   min-height: 38px;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   border: 1px solid var(--primary);
   border-radius: 6px;
   padding: 0 14px;
@@ -387,10 +388,24 @@ h2 {
   padding-top: 13px;
 }
 
-.advanced-details summary {
+.advanced-details-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
   color: var(--category-text);
   cursor: pointer;
   font-weight: 750;
+}
+
+.advanced-details-trigger svg {
+  transition: transform 140ms ease;
+}
+
+.advanced-details-trigger svg.rotated {
+  transform: rotate(180deg);
 }
 
 .advanced-details-grid {
@@ -400,7 +415,7 @@ h2 {
   margin-top: 16px;
 }
 
-.advanced-details:not([open]) .advanced-details-grid {
+.advanced-details-grid[hidden] {
   display: none;
 }
 

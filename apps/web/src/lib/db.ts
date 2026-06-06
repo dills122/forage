@@ -1,7 +1,6 @@
 import type { ForageRepository, ImportEvent, RepositoryAnalysis } from "@forage/shared";
+import Dexie, { type EntityTable } from "dexie";
 
-const dbName = "forage";
-const dbVersion = 3;
 const localLibraryProfileKey = "local-library-profile";
 
 export interface LocalLibraryProfile {
@@ -12,140 +11,69 @@ export interface LocalLibraryProfile {
   updated_at: string;
 }
 
+interface ForageDatabase extends Dexie {
+  repositories: EntityTable<ForageRepository, "github_id">;
+  importEvents: EntityTable<ImportEvent, "id">;
+  metadata: EntityTable<LocalLibraryProfile, "id">;
+  analysisResults: EntityTable<RepositoryAnalysis, "repository_id">;
+}
+
+const db = new Dexie("forage") as ForageDatabase;
+
+db.version(3).stores({
+  repositories: "github_id, &full_name, primary_language, starred_at",
+  importEvents: "id",
+  metadata: "id",
+  analysisResults: "repository_id, &repository_full_name, analysis_version",
+});
+
 export async function saveRepositories(repositories: ForageRepository[]) {
-  const db = await openDb();
-  const tx = db.transaction("repositories", "readwrite");
-  const store = tx.objectStore("repositories");
-  for (const repository of repositories) {
-    store.put(repository);
-  }
-  await txDone(tx);
-  db.close();
+  await db.repositories.bulkPut(repositories);
 }
 
 export async function getAllRepositories() {
-  const db = await openDb();
-  const tx = db.transaction("repositories", "readonly");
-  const request = tx.objectStore("repositories").getAll();
-  const repositories = await requestDone<ForageRepository[]>(request);
-  db.close();
-  return repositories;
+  return db.repositories.toArray();
 }
 
 export async function saveImportEvent(event: ImportEvent) {
-  const db = await openDb();
-  const tx = db.transaction("importEvents", "readwrite");
-  tx.objectStore("importEvents").put(event);
-  await txDone(tx);
-  db.close();
+  await db.importEvents.put(event);
 }
 
 export async function getImportEvents() {
-  const db = await openDb();
-  const tx = db.transaction("importEvents", "readonly");
-  const request = tx.objectStore("importEvents").getAll();
-  const events = await requestDone<ImportEvent[]>(request);
-  db.close();
+  const events = await db.importEvents.toArray();
   return events.sort((left, right) => right.started_at.localeCompare(left.started_at));
 }
 
 export async function saveAnalysisResults(results: RepositoryAnalysis[]) {
-  const db = await openDb();
-  const tx = db.transaction("analysisResults", "readwrite");
-  const store = tx.objectStore("analysisResults");
-  for (const result of results) {
-    store.put(result);
-  }
-  await txDone(tx);
-  db.close();
+  await db.analysisResults.bulkPut(results);
 }
 
 export async function getAllAnalysisResults() {
-  const db = await openDb();
-  const tx = db.transaction("analysisResults", "readonly");
-  const request = tx.objectStore("analysisResults").getAll();
-  const results = await requestDone<RepositoryAnalysis[]>(request);
-  db.close();
-  return results;
+  return db.analysisResults.toArray();
 }
 
 export async function saveLocalLibraryProfile(profile: Omit<LocalLibraryProfile, "id">) {
-  const db = await openDb();
-  const tx = db.transaction("metadata", "readwrite");
-  tx.objectStore("metadata").put({ ...profile, id: localLibraryProfileKey });
-  await txDone(tx);
-  db.close();
+  await db.metadata.put({ ...profile, id: localLibraryProfileKey });
 }
 
 export async function getLocalLibraryProfile() {
-  const db = await openDb();
-  const tx = db.transaction("metadata", "readonly");
-  const request = tx.objectStore("metadata").get(localLibraryProfileKey);
-  const profile = await requestDone<LocalLibraryProfile | undefined>(request);
-  db.close();
-  return profile ?? null;
+  return (await db.metadata.get(localLibraryProfileKey)) ?? null;
 }
 
 export async function resetLocalData() {
-  const db = await openDb();
-  const tx = db.transaction(
-    ["repositories", "importEvents", "analysisResults", "metadata"],
-    "readwrite",
+  await db.transaction(
+    "rw",
+    db.repositories,
+    db.importEvents,
+    db.analysisResults,
+    db.metadata,
+    async () => {
+      await Promise.all([
+        db.repositories.clear(),
+        db.importEvents.clear(),
+        db.analysisResults.clear(),
+        db.metadata.clear(),
+      ]);
+    },
   );
-  tx.objectStore("repositories").clear();
-  tx.objectStore("importEvents").clear();
-  tx.objectStore("analysisResults").clear();
-  tx.objectStore("metadata").clear();
-  await txDone(tx);
-  db.close();
-}
-
-function openDb() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(dbName, dbVersion);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-
-      if (!db.objectStoreNames.contains("repositories")) {
-        const store = db.createObjectStore("repositories", { keyPath: "github_id" });
-        store.createIndex("full_name", "full_name", { unique: true });
-        store.createIndex("primary_language", "primary_language", { unique: false });
-        store.createIndex("starred_at", "starred_at", { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains("importEvents")) {
-        db.createObjectStore("importEvents", { keyPath: "id" });
-      }
-
-      if (!db.objectStoreNames.contains("metadata")) {
-        db.createObjectStore("metadata", { keyPath: "id" });
-      }
-
-      if (!db.objectStoreNames.contains("analysisResults")) {
-        const store = db.createObjectStore("analysisResults", { keyPath: "repository_id" });
-        store.createIndex("repository_full_name", "repository_full_name", { unique: true });
-        store.createIndex("analysis_version", "analysis_version", { unique: false });
-        store.createIndex("score_version", "scores.version", { unique: false });
-      }
-    };
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function requestDone<T>(request: IDBRequest<T>) {
-  return new Promise<T>((resolve, reject) => {
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-  });
-}
-
-function txDone(tx: IDBTransaction) {
-  return new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
-  });
 }
