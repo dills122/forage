@@ -5,7 +5,7 @@ import {
   serializeForageExportJson,
   serializeRepositoryAnalysisCsv,
 } from "@forage/reporting";
-import type { ForageRepository, RepositoryAnalysis } from "@forage/shared";
+import type { ApplicationSettings, ForageRepository, RepositoryAnalysis } from "@forage/shared";
 import type { SessionResponse } from "../lib/api";
 import { WorkerApi } from "../lib/api";
 import {
@@ -37,6 +37,8 @@ interface AppState {
   localLibraryProfile: LocalLibraryProfile | null;
   localLibraryOwner: string;
   localLibraryConflict: boolean;
+  settings: ApplicationSettings;
+  settingsStatus: string;
   repositories: ForageRepository[];
   analysisByRepositoryId: Map<number, RepositoryAnalysis>;
   topLanguage: string;
@@ -65,6 +67,8 @@ const state: AppState = {
   localLibraryProfile: null,
   localLibraryOwner: "-",
   localLibraryConflict: false,
+  settings: defaultSettings(),
+  settingsStatus: "Connect GitHub to manage this setting.",
   repositories: [],
   analysisByRepositoryId: new Map(),
   topLanguage: "-",
@@ -110,6 +114,10 @@ function bindEvents() {
   getElement<HTMLSelectElement>("category-filter").addEventListener("change", updateCategoryFilter);
   getElement<HTMLSelectElement>("library-sort").addEventListener("change", updateLibrarySort);
   getElement<HTMLButtonElement>("theme-toggle").addEventListener("click", toggleTheme);
+  getElement<HTMLInputElement>("analytics-toggle").addEventListener(
+    "change",
+    updateAnalyticsSetting,
+  );
 }
 
 function initializeThemeToggle() {
@@ -151,6 +159,9 @@ async function refreshState() {
         getAllAnalysisResults(),
         getLocalLibraryProfile(),
       ]);
+    const settingsResponse = session.authenticated
+      ? await api.getSettings().catch(() => null)
+      : null;
 
     state.configStatus =
       config.has_github_client_id && config.has_github_client_secret
@@ -169,9 +180,13 @@ async function refreshState() {
     state.localLibraryConflict = hasLocalLibraryConflict(localLibraryProfile, session.user);
     state.user = getUserDisplay(session, localLibraryProfile, repositories.length);
     state.localLibraryStatus = getLocalLibraryStatus(repositories.length, session.authenticated);
+    state.settings = settingsResponse?.settings ?? defaultSettings();
+    state.settingsStatus = getSettingsStatus(session.authenticated, settingsResponse?.settings);
   } catch (error) {
     state.configStatus = error instanceof Error ? error.message : "Worker unavailable";
     state.sessionStatus = "Unavailable";
+    state.settings = defaultSettings();
+    state.settingsStatus = "Settings unavailable.";
   }
 
   render();
@@ -301,6 +316,26 @@ function updateLibrarySort(event: Event) {
   renderRepositories();
 }
 
+async function updateAnalyticsSetting(event: Event) {
+  const checkbox = event.target as HTMLInputElement;
+  checkbox.disabled = true;
+
+  try {
+    const response = await api.updateSettings({
+      analytics_enabled: checkbox.checked,
+    });
+    state.settings = response.settings;
+    state.settingsStatus = getSettingsStatus(state.authenticated, response.settings);
+    state.progress = "Settings updated.";
+  } catch (error) {
+    state.progress = error instanceof Error ? error.message : "Settings update failed.";
+    await refreshState();
+    return;
+  }
+
+  render();
+}
+
 function render() {
   setText("worker-origin", state.workerOrigin);
   setText("config-status", state.configStatus);
@@ -313,6 +348,7 @@ function render() {
   setText("latest-import", state.latestImport);
   setText("progress-text", state.progress);
   setText("repository-storage-status", state.localLibraryStatus);
+  setText("analytics-status", state.settingsStatus);
   setText("local-library-notice-title", getLocalLibraryNoticeTitle());
   setText("local-library-notice-body", getLocalLibraryNoticeBody());
   setText(
@@ -328,6 +364,9 @@ function render() {
   getElement<HTMLButtonElement>("import-button").disabled =
     importRunning || !state.authenticated || state.localLibraryConflict;
   getElement("cancel-import-button").toggleAttribute("hidden", !importRunning);
+  const analyticsToggle = getElement<HTMLInputElement>("analytics-toggle");
+  analyticsToggle.checked = state.settings.analytics_enabled;
+  analyticsToggle.disabled = !state.authenticated;
   getElement<HTMLButtonElement>("export-button").disabled =
     importRunning || state.repositoryCount === 0;
   getElement<HTMLButtonElement>("export-csv-button").disabled =
@@ -546,6 +585,19 @@ function getLocalLibraryStatus(repositoryCount: number, authenticated: boolean) 
 function getLocalLibraryOwner(profile: LocalLibraryProfile | null, repositoryCount: number) {
   if (repositoryCount === 0) return "-";
   return profile?.github_login ? profile.github_login : "Unknown local owner";
+}
+
+function defaultSettings(): ApplicationSettings {
+  return {
+    analytics_enabled: false,
+    updated_at: null,
+  };
+}
+
+function getSettingsStatus(authenticated: boolean, settings: ApplicationSettings | undefined) {
+  if (!authenticated) return "Connect GitHub to manage this setting.";
+  if (!settings?.analytics_enabled) return "Off. Repository data stays in this browser.";
+  return "On. Anonymous product analytics only; repository data stays in this browser.";
 }
 
 function getUserDisplay(

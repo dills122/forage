@@ -1,4 +1,5 @@
 import { fetchStarredRepositoriesPage, GitHubApiError } from "@forage/github";
+import type { ApplicationSettings, ApplicationSettingsUpdate } from "@forage/shared";
 
 interface Env {
   GITHUB_CLIENT_ID?: string;
@@ -13,6 +14,7 @@ interface Session {
   tokenType: string;
   scope: string;
   createdAt: string;
+  settings: ApplicationSettings;
 }
 
 const sessions = new Map<string, Session>();
@@ -65,6 +67,14 @@ function route(request: Request, env: Env) {
     return logout(request, env);
   }
 
+  if (url.pathname === "/api/settings" && request.method === "GET") {
+    return getSettings(request, env);
+  }
+
+  if (url.pathname === "/api/settings" && request.method === "PUT") {
+    return updateSettings(request, env);
+  }
+
   if (url.pathname === "/api/github/starred") {
     return fetchStarred(request, env);
   }
@@ -115,6 +125,7 @@ async function finishGitHubAuth(request: Request, env: Env) {
       tokenType: tokenPayload.token_type,
       scope: tokenPayload.scope,
       createdAt: new Date().toISOString(),
+      settings: defaultSettings(),
     });
 
     return redirect(webOrigin(env), [
@@ -187,6 +198,42 @@ function logout(request: Request, env: Env) {
       },
     },
   );
+}
+
+function getSettings(request: Request, env: Env) {
+  const session = getSession(request);
+  if (!session) {
+    return json(request, env, { error: "Not authenticated" }, { status: 401 });
+  }
+
+  return json(request, env, {
+    settings: session.settings,
+    stores_repository_data: false,
+    settings_store: "in-memory-dev",
+  });
+}
+
+async function updateSettings(request: Request, env: Env) {
+  const session = getSession(request);
+  if (!session) {
+    return json(request, env, { error: "Not authenticated" }, { status: 401 });
+  }
+
+  const payload = await request.json().catch(() => null);
+  if (!isSettingsUpdate(payload)) {
+    return json(request, env, { error: "Invalid settings payload" }, { status: 400 });
+  }
+
+  session.settings = {
+    analytics_enabled: payload.analytics_enabled,
+    updated_at: new Date().toISOString(),
+  };
+
+  return json(request, env, {
+    settings: session.settings,
+    stores_repository_data: false,
+    settings_store: "in-memory-dev",
+  });
 }
 
 async function fetchStarred(request: Request, env: Env) {
@@ -306,7 +353,7 @@ function corsHeaders(request: Request, env: Env) {
   const origin = request.headers.get("origin");
   const allowedOrigin = webOrigin(env);
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Credentials": "true",
   };
@@ -317,6 +364,22 @@ function corsHeaders(request: Request, env: Env) {
   }
 
   return headers;
+}
+
+function defaultSettings(): ApplicationSettings {
+  return {
+    analytics_enabled: false,
+    updated_at: null,
+  };
+}
+
+function isSettingsUpdate(payload: unknown): payload is ApplicationSettingsUpdate {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "analytics_enabled" in payload &&
+    typeof (payload as { analytics_enabled?: unknown }).analytics_enabled === "boolean"
+  );
 }
 
 function cookie(request: Request, name: string, value: string, options: { maxAge?: number } = {}) {

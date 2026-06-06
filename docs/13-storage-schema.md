@@ -55,6 +55,12 @@ Current IndexedDB stores:
   - Key: `id`
   - Current record: `local-library-profile`
 
+Current server settings behavior:
+- `GET /api/settings` returns the authenticated session's settings.
+- `PUT /api/settings` updates the authenticated session's settings.
+- `analytics_enabled` defaults to `false`.
+- Current implementation is `in-memory-dev`; durable Cloudflare storage keyed by a non-obvious GitHub user hash remains the production storage step.
+
 Current export behavior:
 - Exports are generated on demand.
 - JSON exports include repositories, latest import event, local library profile, and current analysis results.
