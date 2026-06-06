@@ -36,6 +36,45 @@ http://localhost:5173
 
 This app is intentionally small and dependency-free. It is not the final Astro/Cloudflare implementation.
 
+## Real App Local Dev
+
+The real app is split into:
+
+- `apps/web`: Astro browser app
+- `apps/worker`: Cloudflare Worker auth/import API
+
+Copy the Worker env example:
+
+```sh
+cp apps/worker/.dev.vars.example apps/worker/.dev.vars
+```
+
+Set the GitHub App values in `apps/worker/.dev.vars`. The local callback URL is:
+
+```text
+http://127.0.0.1:8787/auth/github/callback
+```
+
+Run the Worker:
+
+```sh
+npm run dev:worker
+```
+
+Run the web app in another terminal:
+
+```sh
+npm run dev:web
+```
+
+Then open:
+
+```text
+http://127.0.0.1:4321
+```
+
+Repository data imported through the real app is stored in browser IndexedDB, not in the Worker.
+
 ## AI Central Context
 
 This repo uses AI Central steering and local Codex skill links.

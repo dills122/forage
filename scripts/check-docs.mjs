@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 const root = resolve(".");

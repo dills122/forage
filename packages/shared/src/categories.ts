@@ -3,6 +3,7 @@ export interface CategoryRule {
   label: string;
   family: CategoryFamily;
   threshold: number;
+  deprecated?: boolean;
   topics?: WeightedTerm[];
   keywords?: WeightedTerm[];
   languages?: WeightedTerm[];

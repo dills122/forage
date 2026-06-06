@@ -10,6 +10,12 @@ const expectedPaths = [
   ".codex/steering/testing-quality-gates-steering.md",
   ".codex/steering/frontend-design-steering.md",
   "apps/pre-mvp",
+  "apps/web/package.json",
+  "apps/web/astro.config.mjs",
+  "apps/web/src/pages/index.astro",
+  "apps/worker/package.json",
+  "apps/worker/src/index.ts",
+  "apps/worker/wrangler.toml",
   "packages/shared/src/index.ts",
   "packages/core/src/index.ts",
   "packages/github/src/index.ts",
@@ -17,7 +23,14 @@ const expectedPaths = [
   "packages/reporting/src/index.ts",
   "docs/README.md",
   "docs/adr/0001-github-app-user-auth.md",
+  "docs/17-ci-and-quality-gates.md",
   ".github/workflows/check.yml",
+  ".github/pull_request_template.md",
+  ".husky/pre-commit",
+  ".lintstagedrc.json",
+  ".prettierignore",
+  ".prettierrc.json",
+  "biome.json",
   "scripts/dev/setup-codex-links.mjs",
 ];
 
@@ -36,6 +49,13 @@ for (const scriptName of [
   "check:scripts",
   "check:workspace",
   "check:pre-mvp",
+  "format",
+  "format:astro",
+  "format:astro:check",
+  "lint",
+  "lint:fix",
+  "lint-staged",
+  "prepare",
 ]) {
   if (!packageJson.scripts?.[scriptName]) {
     failures.push(`Missing package script: ${scriptName}`);
@@ -44,6 +64,52 @@ for (const scriptName of [
 
 if (!packageJson.scripts?.["codex:links"]) {
   failures.push("Missing package script: codex:links");
+}
+
+if (packageJson.packageManager !== "pnpm@10.23.0") {
+  failures.push("packageManager must stay pinned to pnpm@10.23.0");
+}
+
+const workflow = await readFile(join(root, ".github/workflows/check.yml"), "utf8");
+const expectedWorkflowSnippets = [
+  "pull_request:",
+  "branches:",
+  "- main",
+  "permissions:",
+  "contents: read",
+  "concurrency:",
+  "pnpm/action-setup@v4",
+  "actions/setup-node@v4",
+  "node-version: 22",
+  "cache: pnpm",
+  "pnpm install --frozen-lockfile",
+  "npm run check",
+];
+
+for (const snippet of expectedWorkflowSnippets) {
+  if (!workflow.includes(snippet)) {
+    failures.push(`CI workflow is missing required snippet: ${snippet}`);
+  }
+}
+
+const expectedDevDependencies = [
+  "@biomejs/biome",
+  "husky",
+  "lint-staged",
+  "prettier",
+  "prettier-plugin-astro",
+  "typescript",
+];
+
+for (const dependencyName of expectedDevDependencies) {
+  if (!packageJson.devDependencies?.[dependencyName]) {
+    failures.push(`Missing root devDependency: ${dependencyName}`);
+  }
+}
+
+const huskyHook = await readFile(join(root, ".husky/pre-commit"), "utf8");
+if (!huskyHook.includes("pnpm exec lint-staged")) {
+  failures.push("Husky pre-commit hook must run pnpm exec lint-staged");
 }
 
 if (failures.length > 0) {

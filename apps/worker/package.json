@@ -1,0 +1,19 @@
+{
+  "name": "@forage/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "WRANGLER_LOG_PATH=../../.wrangler/logs WRANGLER_SEND_METRICS=false wrangler deploy --dry-run --outdir dist",
+    "dev": "WRANGLER_LOG_PATH=../../.wrangler/logs WRANGLER_SEND_METRICS=false wrangler dev",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@forage/github": "workspace:*",
+    "@forage/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250605.0",
+    "wrangler": "^4.50.0"
+  }
+}

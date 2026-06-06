@@ -1,3 +1,5 @@
+import type { CategoryMatch } from "./categories";
+
 export interface ScoreSet {
   version: string;
   overall: ScoreValue;
@@ -27,4 +29,14 @@ export interface InsightLabel {
   label: string;
   score_version: string;
   reasons: string[];
+}
+
+export interface RepositoryAnalysis {
+  repository_id: number;
+  repository_full_name: string;
+  analysis_version: string;
+  generated_at: string;
+  categories: CategoryMatch[];
+  scores: ScoreSet;
+  labels: InsightLabel[];
 }

@@ -1,0 +1,25 @@
+---
+interface Props {
+  title: string;
+  items: Array<{
+    label: string;
+    value: string;
+  }>;
+}
+
+const { title, items } = Astro.props;
+---
+
+<section class="status-panel">
+  <h2>{title}</h2>
+  <dl>
+    {
+      items.map((item) => (
+        <>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </>
+      ))
+    }
+  </dl>
+</section>
