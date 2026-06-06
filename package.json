@@ -7,8 +7,8 @@
   "scripts": {
     "analysis:review": "node --import tsx scripts/analysis/review-export.ts",
     "build": "pnpm --recursive --if-present build",
-    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:analysis && npm run check:reporting && npm run check:docs && npm run check:workspace && npm run lint && npm run format:astro:check && npm run typecheck && npm run build",
-    "check:analysis": "pnpm analysis:review scripts/analysis/fixtures/forage-export.sample.json > /dev/null && pnpm --filter @forage/analysis test",
+    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:analysis && npm run check:docs && npm run check:workspace && npm run test:coverage && npm run lint && npm run format:astro:check && npm run typecheck && npm run build",
+    "check:analysis": "pnpm analysis:review scripts/analysis/fixtures/forage-export.sample.json > /dev/null",
     "check:docs": "node scripts/check-docs.mjs",
     "check:reporting": "pnpm --filter @forage/reporting test",
     "check:scripts": "node --check scripts/check-docs.mjs && node --check scripts/check-workspace.mjs && node --check scripts/dev/setup-codex-links.mjs",
@@ -24,6 +24,8 @@
     "lint:fix": "biome check --write .",
     "lint-staged": "lint-staged",
     "prepare": "husky",
+    "test": "pnpm --recursive --if-present test",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='packages/*/src/**/*.ts' --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --import tsx packages/*/test/*.test.mjs",
     "check:pre-mvp": "node --check apps/pre-mvp/server.mjs && node --check apps/pre-mvp/public/app.js && node --check apps/pre-mvp/public/db.js && node --check apps/pre-mvp/public/analysis.worker.js",
     "typecheck": "pnpm --recursive --if-present typecheck"
   },

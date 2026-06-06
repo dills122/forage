@@ -94,3 +94,42 @@ test("serializes repository analysis CSV with escaped values", () => {
   assert.match(csv, /local-first\|csv/);
   assert.match(csv, /Frontend,81,75,88,80,70/);
 });
+
+test("serializes empty score fields when analysis is missing", () => {
+  const payload = createForageExport({
+    repositories: [
+      {
+        ...repository,
+        github_id: 2,
+        description: null,
+        primary_language: null,
+        license: null,
+        topics: [],
+        pushed_at: null,
+      },
+    ],
+    analysis_results: [],
+    latest_import_event: null,
+    local_library_profile: null,
+  });
+
+  const csv = serializeRepositoryAnalysisCsv(payload);
+  const row = csv.trimEnd().split("\n")[1];
+
+  assert.match(csv, /forage\/demo,https:\/\/github.com\/forage\/demo,,/);
+  assert.equal(
+    row,
+    "forage/demo,https://github.com/forage/demo,,,42,3,1,false,false,,,,,,,,,2026-04-01T00:00:00.000Z,2026-02-01T00:00:00.000Z,",
+  );
+});
+
+test("creates a current export timestamp when one is not supplied", () => {
+  const payload = createForageExport({
+    repositories: [],
+    analysis_results: [],
+    latest_import_event: null,
+    local_library_profile: null,
+  });
+
+  assert.match(payload.exported_at, /^\d{4}-\d{2}-\d{2}T/);
+});
