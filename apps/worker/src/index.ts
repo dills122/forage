@@ -7,6 +7,8 @@ interface Env {
   GITHUB_REDIRECT_URI?: string;
   GITHUB_API_VERSION?: string;
   WEB_ORIGIN?: string;
+  SETTINGS_HASH_SALT?: string;
+  SETTINGS_KV?: KVNamespace;
 }
 
 interface Session {
@@ -15,6 +17,13 @@ interface Session {
   scope: string;
   createdAt: string;
   settings: ApplicationSettings;
+  githubUserHash?: string;
+}
+
+interface GitHubUserIdentity {
+  id: number | null;
+  login: string | null;
+  rateLimit: ReturnType<typeof rateLimitFromHeaders>;
 }
 
 const sessions = new Map<string, Session>();
@@ -148,37 +157,30 @@ async function getSessionResponse(request: Request, env: Env) {
     return json(request, env, { authenticated: false });
   }
 
-  const response = await fetch("https://api.github.com/user", {
-    headers: githubHeaders(session.accessToken, githubApiVersion(env)),
-  });
-  const payload = (await response.json().catch(() => null)) as {
-    login?: string;
-    id?: number;
-  } | null;
-
-  if (!response.ok) {
+  const identity = await getGitHubUserIdentity(session, env);
+  if (!identity.ok) {
     return json(
       request,
       env,
       {
         authenticated: false,
         error: "GitHub session validation failed",
-        rate_limit: rateLimitFromHeaders(response.headers),
+        rate_limit: identity.rateLimit,
       },
-      { status: response.status },
+      { status: identity.status },
     );
   }
 
   return json(request, env, {
     authenticated: true,
     user: {
-      login: payload?.login ?? null,
-      id: payload?.id ?? null,
+      login: identity.user.login,
+      id: identity.user.id,
     },
     token_type: session.tokenType,
     scope: session.scope,
     created_at: session.createdAt,
-    rate_limit: rateLimitFromHeaders(response.headers),
+    rate_limit: identity.user.rateLimit,
   });
 }
 
@@ -200,16 +202,17 @@ function logout(request: Request, env: Env) {
   );
 }
 
-function getSettings(request: Request, env: Env) {
+async function getSettings(request: Request, env: Env) {
   const session = getSession(request);
   if (!session) {
     return json(request, env, { error: "Not authenticated" }, { status: 401 });
   }
 
+  const settings = await loadSettings(session, env);
   return json(request, env, {
-    settings: session.settings,
+    settings,
     stores_repository_data: false,
-    settings_store: "in-memory-dev",
+    settings_store: settingsStore(env),
   });
 }
 
@@ -224,15 +227,16 @@ async function updateSettings(request: Request, env: Env) {
     return json(request, env, { error: "Invalid settings payload" }, { status: 400 });
   }
 
-  session.settings = {
+  const settings = {
     analytics_enabled: payload.analytics_enabled,
     updated_at: new Date().toISOString(),
   };
+  await saveSettings(session, env, settings);
 
   return json(request, env, {
-    settings: session.settings,
+    settings,
     stores_repository_data: false,
-    settings_store: "in-memory-dev",
+    settings_store: settingsStore(env),
   });
 }
 
@@ -370,6 +374,74 @@ function defaultSettings(): ApplicationSettings {
   return {
     analytics_enabled: false,
     updated_at: null,
+  };
+}
+
+async function loadSettings(session: Session, env: Env): Promise<ApplicationSettings> {
+  if (!env.SETTINGS_KV) return session.settings;
+
+  const key = await settingsKey(session, env);
+  if (!key) return session.settings;
+  const storedSettings = await env.SETTINGS_KV.get<ApplicationSettings>(key, "json");
+  session.settings = storedSettings ?? defaultSettings();
+  return session.settings;
+}
+
+async function saveSettings(session: Session, env: Env, settings: ApplicationSettings) {
+  session.settings = settings;
+  if (!env.SETTINGS_KV) return;
+
+  const key = await settingsKey(session, env);
+  if (!key) return;
+  await env.SETTINGS_KV.put(key, JSON.stringify(settings));
+}
+
+async function settingsKey(session: Session, env: Env) {
+  if (session.githubUserHash) return `settings:${session.githubUserHash}`;
+
+  const identity = await getGitHubUserIdentity(session, env);
+  if (!identity.ok || identity.user.id === null) return null;
+
+  session.githubUserHash = await hashGitHubUserId(identity.user.id, env);
+  return `settings:${session.githubUserHash}`;
+}
+
+async function hashGitHubUserId(userId: number, env: Env) {
+  const salt = env.SETTINGS_HASH_SALT || env.GITHUB_CLIENT_SECRET || "forage-local-dev";
+  const data = new TextEncoder().encode(`github-user:${userId}:${salt}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function settingsStore(env: Env) {
+  return env.SETTINGS_KV ? "cloudflare-kv" : "in-memory-dev";
+}
+
+async function getGitHubUserIdentity(session: Session, env: Env) {
+  const response = await fetch("https://api.github.com/user", {
+    headers: githubHeaders(session.accessToken, githubApiVersion(env)),
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    login?: string;
+    id?: number;
+  } | null;
+  const rateLimit = rateLimitFromHeaders(response.headers);
+
+  if (!response.ok) {
+    return {
+      ok: false as const,
+      status: response.status,
+      rateLimit,
+    };
+  }
+
+  return {
+    ok: true as const,
+    user: {
+      id: payload?.id ?? null,
+      login: payload?.login ?? null,
+      rateLimit,
+    } satisfies GitHubUserIdentity,
   };
 }
 

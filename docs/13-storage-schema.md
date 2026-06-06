@@ -59,7 +59,9 @@ Current server settings behavior:
 - `GET /api/settings` returns the authenticated session's settings.
 - `PUT /api/settings` updates the authenticated session's settings.
 - `analytics_enabled` defaults to `false`.
-- Current implementation is `in-memory-dev`; durable Cloudflare storage keyed by a non-obvious GitHub user hash remains the production storage step.
+- If `SETTINGS_KV` is bound, settings persist in Cloudflare KV under a salted SHA-256 GitHub user id hash.
+- If `SETTINGS_KV` is not bound, settings use `in-memory-dev` session storage for local development.
+- `SETTINGS_HASH_SALT` should be set in deployed environments; the Worker falls back to `GITHUB_CLIENT_SECRET` when no dedicated salt is configured.
 
 Current export behavior:
 - Exports are generated on demand.
