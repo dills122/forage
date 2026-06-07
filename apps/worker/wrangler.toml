@@ -3,9 +3,18 @@ main = "src/index.ts"
 compatibility_date = "2026-06-05"
 
 [vars]
+ENVIRONMENT = "development"
 GITHUB_API_VERSION = "2022-11-28"
 GITHUB_REDIRECT_URI = "http://127.0.0.1:8787/auth/github/callback"
 WEB_ORIGIN = "http://127.0.0.1:4321"
+
+[[durable_objects.bindings]]
+name = "AUTH_COORDINATOR"
+class_name = "AuthCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AuthCoordinator"]
 
 # Uncomment and fill IDs after creating Cloudflare KV namespaces.
 # [[kv_namespaces]]
@@ -19,3 +28,23 @@ WEB_ORIGIN = "http://127.0.0.1:4321"
 # [[kv_namespaces]]
 # binding = "OAUTH_STATE_KV"
 # id = "<OAUTH_STATE_KV_NAMESPACE_ID>"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+GITHUB_API_VERSION = "2022-11-28"
+GITHUB_REDIRECT_URI = "https://api-staging.forage.example.com/auth/github/callback"
+WEB_ORIGIN = "https://staging.forage.example.com"
+
+[[env.staging.durable_objects.bindings]]
+name = "AUTH_COORDINATOR"
+class_name = "AuthCoordinator"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+GITHUB_API_VERSION = "2022-11-28"
+GITHUB_REDIRECT_URI = "https://api.forage.example.com/auth/github/callback"
+WEB_ORIGIN = "https://forage.example.com"
+
+[[env.production.durable_objects.bindings]]
+name = "AUTH_COORDINATOR"
+class_name = "AuthCoordinator"
