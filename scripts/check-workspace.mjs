@@ -33,6 +33,7 @@ const expectedPaths = [
   "biome.json",
   "scripts/analysis/review-export.ts",
   "scripts/analysis/fixtures/forage-export.sample.json",
+  "scripts/check-hosted-smoke.mjs",
   "scripts/check-web-build.mjs",
   "scripts/dev/setup-codex-links.mjs",
 ];
@@ -60,6 +61,7 @@ for (const scriptName of [
   "lint:fix",
   "lint-staged",
   "prepare",
+  "smoke:hosted",
   "test",
   "test:coverage",
   "analysis:review",

@@ -21,15 +21,34 @@ Current `npm run check` coverage:
 - Documentation checks
 - Workspace structure checks
 - Package tests with coverage
+- Worker API contract tests
 - Biome lint and format checks for JavaScript, TypeScript, CSS, and JSON
 - Astro file formatting checks through Prettier and `prettier-plugin-astro`
 - TypeScript and Astro type checks
 - Production builds, including Cloudflare Worker dry-run build
+- Local web build smoke checks
 
 Current package test coverage:
 - `@forage/analysis`: category matching, scoring versions, score bounds, stale/archived/disabled behavior
 - `@forage/github`: starred repository request construction, pagination, normalization defaults, malformed items, API errors
 - `@forage/reporting`: versioned JSON payloads, CSV escaping, missing analysis fields, generated export timestamps
+
+Current Worker API contract coverage:
+- OAuth `state` and PKCE verifier exchange
+- CSRF rejection for authenticated mutations
+- Production config diagnostics trimming
+- Expired GitHub session reconnect behavior
+- CORS allowed and rejected origins
+- Secure OAuth/session cookie attributes
+- Token material non-disclosure in session responses
+- Account deletion for settings and active sessions
+- Auth start throttling and retry metadata
+
+Hosted smoke command:
+- Script: `scripts/check-hosted-smoke.mjs`
+- Command: `FORAGE_WEB_ORIGIN=https://forage.example.com FORAGE_WORKER_ORIGIN=https://api.forage.example.com pnpm smoke:hosted`
+- Purpose: verify deployed Worker health, Worker CORS/preflight, Pages headers, CSP Worker origin, and basic rendered app HTML
+- This is not part of the default CI gate because it requires live hosted domains.
 
 Local developer hooks:
 - Husky installs the pre-commit hook through the root `prepare` script.
@@ -56,4 +75,4 @@ Future gates:
 - Add package-level unit tests for IndexedDB migrations.
 - Add browser smoke tests once the app has stable flows beyond the current import slice.
 - Add deployment preview checks when Cloudflare environment bindings are defined.
-- Add a hosted smoke check for production/staging `/api/health` and static asset headers once Cloudflare domains are configured.
+- Add a scheduled or manual CI job for `pnpm smoke:hosted` once Cloudflare domains are configured.

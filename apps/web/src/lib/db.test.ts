@@ -2,11 +2,14 @@ import { analyzeRepository } from "@forage/analysis";
 import type { ForageRepository, ImportEvent } from "@forage/shared";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  acquireLocalOperationLock,
   getAllAnalysisResults,
   getAllRepositories,
   getImportEvents,
   getLocalLibraryProfile,
   reconcileImportedRepositories,
+  refreshLocalOperationLock,
+  releaseLocalOperationLock,
   resetLocalData,
   saveAnalysisResults,
   saveImportEvent,
@@ -86,6 +89,60 @@ describe("local data store", () => {
     expect(await getAllAnalysisResults()).toEqual([]);
     expect(await getImportEvents()).toEqual([]);
     expect(await getLocalLibraryProfile()).toBeNull();
+  });
+
+  it("coordinates local operation locks through metadata", async () => {
+    const firstLock = await acquireLocalOperationLock("import", {
+      now: new Date("2026-06-06T12:00:00.000Z"),
+      ownerId: "owner-one",
+    });
+    expect(firstLock.acquired).toBe(true);
+
+    const blockedLock = await acquireLocalOperationLock("reset", {
+      now: new Date("2026-06-06T12:01:00.000Z"),
+      ownerId: "owner-two",
+    });
+    expect(blockedLock.acquired).toBe(false);
+    if (!blockedLock.acquired) {
+      expect(blockedLock.lock.operation).toBe("import");
+    }
+
+    await releaseLocalOperationLock("owner-one");
+    const secondLock = await acquireLocalOperationLock("reset", {
+      now: new Date("2026-06-06T12:02:00.000Z"),
+      ownerId: "owner-two",
+    });
+    expect(secondLock.acquired).toBe(true);
+  });
+
+  it("replaces stale local operation locks and refreshes active locks", async () => {
+    await acquireLocalOperationLock("import", {
+      ttlMs: 1_000,
+      now: new Date("2026-06-06T12:00:00.000Z"),
+      ownerId: "stale-owner",
+    });
+
+    const replacement = await acquireLocalOperationLock("reset", {
+      ttlMs: 1_000,
+      now: new Date("2026-06-06T12:00:02.000Z"),
+      ownerId: "replacement-owner",
+    });
+    expect(replacement.acquired).toBe(true);
+
+    await refreshLocalOperationLock("replacement-owner", {
+      ttlMs: 10_000,
+      now: new Date("2026-06-06T12:00:03.000Z"),
+    });
+
+    const blocked = await acquireLocalOperationLock("import", {
+      now: new Date("2026-06-06T12:00:05.000Z"),
+      ownerId: "blocked-owner",
+    });
+    expect(blocked.acquired).toBe(false);
+    if (!blocked.acquired) {
+      expect(blocked.lock.owner_id).toBe("replacement-owner");
+      expect(blocked.lock.expires_at).toBe("2026-06-06T12:00:13.000Z");
+    }
   });
 });
 

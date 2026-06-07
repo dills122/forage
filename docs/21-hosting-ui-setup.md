@@ -153,6 +153,16 @@ Do not store GitHub App client secrets as public repository variables.
 
 ## Post-Deploy Verification
 
+Run the automated hosted smoke check:
+
+```sh
+FORAGE_WEB_ORIGIN=https://forage.example.com \
+FORAGE_WORKER_ORIGIN=https://api.forage.example.com \
+pnpm smoke:hosted
+```
+
+For staging, use the staging web and API origins. This script verifies Worker health, CORS, preflight headers, Pages security headers, CSP Worker origin, and basic app HTML.
+
 Verify Worker health:
 - `GET https://api.forage.example.com/api/health`
 - Expected: JSON with `ok: true` and `privacy_boundary: "no repository data stored server-side"`
