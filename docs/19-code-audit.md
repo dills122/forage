@@ -28,8 +28,8 @@ Near-term design recommendations:
 - Continue splitting `ForageApp.svelte` only when new UI surfaces add real complexity. The current app shell is acceptable after the orchestration split.
 - Keep import refresh as full reconciliation for MVP. Add incremental refresh only after there is a measured need and a clear stale-star detection model.
 - Add restore/import-from-export only after JSON schema validation is explicit and tested.
-- Split `apps/web/src/lib/db.ts` into a schema module plus focused repository, import-event, analysis-result, profile, and operation-lock store modules before local schema migration work grows.
-- Extract `packages/analysis` category rules, scoring weights, label definitions, and threshold values into typed config modules before the next scoring-tuning pass.
+- Keep local schema migration work fixture-backed now that the browser database is split into a facade plus focused store modules.
+- Treat future category and scoring tuning as config changes first now that analysis versions, category rules, scoring weights, thresholds, and label cutoffs are in typed config modules.
 
 Resolved in this slice:
 
@@ -40,3 +40,5 @@ Resolved in this slice:
 - Updated import/storage docs to match the current implementation.
 - Split web app orchestration, export, theme, refresh, and import pipeline logic into focused modules.
 - Split Worker support modules, route handlers, Durable Object logic, and test helpers by concern.
+- Split browser local data storage into a public DB facade plus schema, repository, import-event, analysis-result, profile, operation-lock, and reset modules.
+- Extracted analysis plan/version constants, category rules, and scoring weights/thresholds into typed config modules.
