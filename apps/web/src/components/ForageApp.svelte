@@ -30,6 +30,7 @@
     type RepositoryImportSession,
     startRepositoryImport,
   } from "../lib/import-worker";
+  import { LocalOperationLockError, withLocalOperationLock } from "../lib/local-operation-lock";
   import {
     createCurrentAnalysisMap,
     filterRepositories,
@@ -248,17 +249,18 @@
       return;
     }
 
-    patchState({ progress: "Starting import..." });
-
     try {
-      activeImportSession = startRepositoryImport(
-        {
-          workerOrigin: state.workerOrigin,
-          sessionUser: state.sessionUser,
-        },
-        applyImportProgress,
-      );
-      applyImportTerminal(await activeImportSession.done);
+      await withLocalOperationLock("import", async () => {
+        patchState({ progress: "Starting import..." });
+        activeImportSession = startRepositoryImport(
+          {
+            workerOrigin: state.workerOrigin,
+            sessionUser: state.sessionUser,
+          },
+          applyImportProgress,
+        );
+        applyImportTerminal(await activeImportSession.done);
+      });
     } catch (error) {
       patchState({ progress: error instanceof Error ? error.message : "Import failed." });
     } finally {
@@ -291,8 +293,21 @@
   }
 
   async function resetData() {
-    await resetLocalData();
-    patchState({ progress: "Local data reset." });
+    try {
+      await withLocalOperationLock("reset", async () => {
+        await resetLocalData();
+        patchState({ progress: "Local data reset." });
+      });
+    } catch (error) {
+      patchState({
+        progress:
+          error instanceof LocalOperationLockError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : "Local data reset failed.",
+      });
+    }
     await refreshState();
   }
 

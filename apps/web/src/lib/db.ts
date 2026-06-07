@@ -2,6 +2,9 @@ import type { ForageRepository, ImportEvent, RepositoryAnalysis } from "@forage/
 import Dexie, { type EntityTable } from "dexie";
 
 const localLibraryProfileKey = "local-library-profile";
+const localOperationLockKey = "local-operation-lock";
+
+export type LocalOperationName = "import" | "reset";
 
 export interface LocalLibraryProfile {
   id: typeof localLibraryProfileKey;
@@ -11,10 +14,21 @@ export interface LocalLibraryProfile {
   updated_at: string;
 }
 
+export interface LocalOperationLock {
+  id: typeof localOperationLockKey;
+  owner_id: string;
+  operation: LocalOperationName;
+  acquired_at: string;
+  heartbeat_at: string;
+  expires_at: string;
+}
+
+type MetadataRecord = LocalLibraryProfile | LocalOperationLock;
+
 interface ForageDatabase extends Dexie {
   repositories: EntityTable<ForageRepository, "github_id">;
   importEvents: EntityTable<ImportEvent, "id">;
-  metadata: EntityTable<LocalLibraryProfile, "id">;
+  metadata: EntityTable<MetadataRecord, "id">;
   analysisResults: EntityTable<RepositoryAnalysis, "repository_id">;
 }
 
@@ -79,7 +93,88 @@ export async function saveLocalLibraryProfile(profile: Omit<LocalLibraryProfile,
 }
 
 export async function getLocalLibraryProfile() {
-  return (await db.metadata.get(localLibraryProfileKey)) ?? null;
+  return (
+    ((await db.metadata.get(localLibraryProfileKey)) as LocalLibraryProfile | undefined) ?? null
+  );
+}
+
+export async function acquireLocalOperationLock(
+  operation: LocalOperationName,
+  {
+    ttlMs = 15 * 60 * 1000,
+    now = new Date(),
+    ownerId = crypto.randomUUID(),
+  }: {
+    ttlMs?: number;
+    now?: Date;
+    ownerId?: string;
+  } = {},
+) {
+  const nowMs = now.getTime();
+  const lock: LocalOperationLock = {
+    id: localOperationLockKey,
+    owner_id: ownerId,
+    operation,
+    acquired_at: now.toISOString(),
+    heartbeat_at: now.toISOString(),
+    expires_at: new Date(nowMs + ttlMs).toISOString(),
+  };
+
+  const blockingLock = await db.transaction("rw", db.metadata, async () => {
+    const existing = (await db.metadata.get(localOperationLockKey)) as
+      | LocalOperationLock
+      | undefined;
+    if (existing && Date.parse(existing.expires_at) > nowMs) return existing;
+
+    await db.metadata.put(lock);
+    return null;
+  });
+
+  return blockingLock
+    ? {
+        acquired: false as const,
+        lock: blockingLock,
+      }
+    : {
+        acquired: true as const,
+        lock,
+      };
+}
+
+export async function refreshLocalOperationLock(
+  ownerId: string,
+  {
+    ttlMs = 15 * 60 * 1000,
+    now = new Date(),
+  }: {
+    ttlMs?: number;
+    now?: Date;
+  } = {},
+) {
+  await db.transaction("rw", db.metadata, async () => {
+    const existing = (await db.metadata.get(localOperationLockKey)) as
+      | LocalOperationLock
+      | undefined;
+    if (!existing || existing.owner_id !== ownerId) return;
+
+    const refreshedLock: LocalOperationLock = {
+      ...existing,
+      heartbeat_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + ttlMs).toISOString(),
+    };
+    await db.metadata.put(refreshedLock);
+  });
+}
+
+export async function releaseLocalOperationLock(ownerId: string) {
+  await db.transaction("rw", db.metadata, async () => {
+    const existing = (await db.metadata.get(localOperationLockKey)) as
+      | LocalOperationLock
+      | undefined;
+    if (existing?.owner_id === ownerId) {
+      await db.metadata.delete(localOperationLockKey);
+    }
+  });
 }
 
 export async function resetLocalData() {
