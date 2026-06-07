@@ -15,10 +15,10 @@ Forage account model:
 Forage has a minimal server-side user record, but it is not a general product account.
 
 Stored in Cloudflare:
-- GitHub token material or token references needed for API access
+- Short-lived GitHub user access tokens inside encrypted session state
 - Non-obvious GitHub user hash
 - Session state
-- OAuth state
+- OAuth state with PKCE verifier
 - Opt-in or opt-out preferences
 - Small settings records
 - Aggregate analytics if enabled
@@ -36,11 +36,23 @@ Privacy requirements:
 - Keep analytics aggregate-only.
 - Make analytics preference clear and reversible.
 - Provide local data reset in the app.
+- Provide deletion for minimal server-side account state.
 - Document what is stored server-side in user-facing language.
 
+Implemented MVP decisions:
+- Use GitHub App user authorization with OAuth `state` and PKCE S256.
+- Use expiring GitHub App user access tokens.
+- Do not persist refresh tokens for MVP.
+- Require reconnect after the GitHub access token or Forage session expires.
+- Store session and OAuth coordination in a Cloudflare Durable Object when deployed.
+- Store settings under a salted GitHub user id hash.
+- Require session-bound CSRF tokens for mutating Worker requests.
+- Delete minimal server-side settings/session state through `DELETE /api/account`.
+
 Open implementation decisions:
-- Exact token storage approach, using the normal secure pattern for Cloudflare and GitHub App auth.
-- Session duration, using conventional web-app defaults.
-- Token refresh behavior, using GitHub App defaults where possible.
-- Account deletion behavior for the minimal server record.
-- Whether settings are keyed by a GitHub hash, app-specific user id, or both.
+- Final production and staging hostnames.
+- Final user-facing copy for server-side deletion and local data reset.
+- Whether a future background refresh feature justifies encrypted refresh-token rotation.
+
+Hosting/security reference:
+See [Hosting And Security Plan](./20-hosting-and-security.md).

@@ -21,6 +21,7 @@
     onCancelImport: () => void;
     onExport: (format: "json" | "csv") => void;
     onReset: () => void;
+    onDeleteAccount: () => void;
     onAnalyticsChange: (enabled: boolean) => void;
   }
 
@@ -42,6 +43,7 @@
     onCancelImport,
     onExport,
     onReset,
+    onDeleteAccount,
     onAnalyticsChange,
   }: Props = $props();
 </script>
@@ -123,6 +125,16 @@
         <small id="analytics-status">{settingsStatus}</small>
       </span>
     </label>
+    <button
+      id="delete-account-button"
+      class="button secondary"
+      type="button"
+      disabled={!authenticated || importRunning}
+      onclick={onDeleteAccount}
+    >
+      <Trash2 size={16} aria-hidden="true" />
+      Delete Server State
+    </button>
   </div>
 
   <AdvancedDetails

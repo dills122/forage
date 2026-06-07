@@ -8,13 +8,15 @@ import type {
 
 export interface WorkerConfig {
   auth_type: string;
-  has_github_client_id: boolean;
-  has_github_client_secret: boolean;
-  redirect_uri: string;
-  github_api_version: string;
-  web_origin: string;
+  github_configured?: boolean;
+  has_github_client_id?: boolean;
+  has_github_client_secret?: boolean;
+  redirect_uri?: string;
+  github_api_version?: string;
+  web_origin?: string;
   stores_repository_data: boolean;
-  session_store: string;
+  session_store?: string;
+  oauth_state_store?: string;
 }
 
 export interface SessionResponse {
@@ -26,6 +28,8 @@ export interface SessionResponse {
   token_type?: string;
   scope?: string;
   created_at?: string;
+  access_token_expires_at?: string;
+  csrf_token?: string;
   rate_limit?: GitHubRateLimitSnapshot;
   error?: string;
 }
@@ -56,6 +60,8 @@ export class WorkerApiError extends Error {
 }
 
 export class WorkerApi {
+  private csrfToken: string | null = null;
+
   constructor(readonly workerOrigin: string) {}
 
   connectUrl() {
@@ -66,12 +72,18 @@ export class WorkerApi {
     return this.get<WorkerConfig>("/api/config");
   }
 
-  getSession() {
-    return this.get<SessionResponse>("/api/session");
+  async getSession() {
+    const session = await this.get<SessionResponse>("/api/session");
+    this.csrfToken = session.csrf_token ?? null;
+    return session;
   }
 
   logout() {
     return this.post<{ ok: boolean }>("/api/logout");
+  }
+
+  deleteAccount() {
+    return this.delete<{ ok: boolean; deleted_server_state: boolean }>("/api/account");
   }
 
   getSettings() {
@@ -95,7 +107,10 @@ export class WorkerApi {
   }
 
   private post<T>(path: string) {
-    return this.request<T>(path, { method: "POST" });
+    return this.request<T>(path, {
+      method: "POST",
+      headers: this.csrfHeaders(),
+    });
   }
 
   private put<T>(path: string, body: unknown) {
@@ -104,8 +119,20 @@ export class WorkerApi {
       body: JSON.stringify(body),
       headers: {
         "Content-Type": "application/json",
+        ...this.csrfHeaders(),
       },
     });
+  }
+
+  private delete<T>(path: string) {
+    return this.request<T>(path, {
+      method: "DELETE",
+      headers: this.csrfHeaders(),
+    });
+  }
+
+  private csrfHeaders(): Record<string, string> {
+    return this.csrfToken ? { "X-Forage-CSRF": this.csrfToken } : {};
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {

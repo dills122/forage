@@ -421,6 +421,9 @@ h2 {
 
 .settings-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
   border-top: 1px solid var(--border-soft);
   margin-top: 16px;
   padding-top: 15px;
@@ -825,6 +828,10 @@ h2 {
   }
 
   .advanced-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-row {
     grid-template-columns: 1fr;
   }
 

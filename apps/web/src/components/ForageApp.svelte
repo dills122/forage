@@ -232,6 +232,12 @@
     await refreshState();
   }
 
+  async function deleteServerAccount() {
+    await api.deleteAccount();
+    patchState({ progress: "Server account state deleted. Local repository data remains in this browser." });
+    await refreshState();
+  }
+
   async function importStars() {
     if (activeImportSession) return;
 
@@ -359,13 +365,13 @@
     }
   }
 
-  function getConfigStatus(config: Pick<WorkerConfig, "has_github_client_id" | "has_github_client_secret"> & {
+  function getConfigStatus(config: Pick<WorkerConfig, "github_configured" | "has_github_client_id" | "has_github_client_secret"> & {
     error?: string;
   }) {
     if (config.error) return config.error;
-    return config.has_github_client_id && config.has_github_client_secret
-      ? "Ready"
-      : "Missing GitHub env";
+    const configured =
+      config.github_configured ?? Boolean(config.has_github_client_id && config.has_github_client_secret);
+    return configured ? "Ready" : "Missing GitHub env";
   }
 
   function getLocalLibraryStatus(
@@ -529,6 +535,7 @@
       onCancelImport={cancelActiveImport}
       onExport={exportData}
       onReset={resetData}
+      onDeleteAccount={deleteServerAccount}
       onAnalyticsChange={updateAnalyticsSetting}
     />
   </section>
