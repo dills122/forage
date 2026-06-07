@@ -13,8 +13,6 @@ Items intentionally deferred.
 - IndexedDB schema and migration strategy
 - UI details beyond the first functional dashboard
 - Exact production hostnames
-- Whether MVP persists GitHub refresh tokens or requires reconnect after session expiry
-- Account deletion behavior for minimal server records
 
 Current philosophy:
 
@@ -32,3 +30,6 @@ Repository scores are user-agnostic. Any future preference-aware ranking should 
 
 Hosting/security direction:
 Use Cloudflare Pages for the static web app and a separate Cloudflare Worker for auth/session/settings/API proxying. See [Hosting And Security Plan](./20-hosting-and-security.md).
+
+MVP token/session direction:
+Use expiring GitHub App user access tokens and require reconnect after session expiry. Do not persist refresh tokens for MVP. Minimal server-side account state can be deleted through the Worker account deletion endpoint.

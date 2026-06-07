@@ -1,7 +1,7 @@
 # Hosting And Security Plan
 
 Status:
-Initial deployment plan
+Implementation hardened for hosted testing
 
 ## Recommended Topology
 
@@ -27,38 +27,43 @@ Host the Astro app and Worker under one Cloudflare Worker with static assets onl
 Already implemented:
 - Static Astro app with Svelte islands.
 - Worker GitHub authorization start/callback endpoints.
+- OAuth web flow uses `state` plus PKCE S256 verifier/challenge.
 - Worker `/api/session`, `/api/logout`, `/api/settings`, and `/api/github/starred` endpoints.
+- Worker `DELETE /api/account` endpoint deletes minimal server-side account state.
 - CORS restricted to `WEB_ORIGIN`.
+- Mutating API requests require a session-bound `X-Forage-CSRF` token.
 - `HttpOnly` cookies with `SameSite=Lax`; `Secure` is added automatically for HTTPS requests.
 - Settings can persist to `SETTINGS_KV` under a salted GitHub user id hash.
-- Session state can persist to `SESSION_KV` with an encrypted AES-GCM payload and an 8-hour TTL.
-- OAuth state can persist to `OAUTH_STATE_KV` with a 10-minute TTL and one-time consumption.
+- Session state prefers the `AUTH_COORDINATOR` Durable Object with encrypted AES-GCM payloads and an 8-hour maximum lifetime.
+- OAuth state prefers the `AUTH_COORDINATOR` Durable Object with 10-minute, one-time PKCE state consumption.
+- KV session and OAuth stores remain as migration/development fallbacks.
 - Worker JSON, redirect, and preflight responses include basic security headers.
+- Pages uses Astro CSP support for script/style hashes and Worker `connect-src`.
+- Pages static headers include HSTS, frame denial, referrer policy, nosniff, and a restrictive permissions policy.
 - Repository data, analysis results, reports, and exports stay out of Cloudflare.
 
 Not production-ready yet:
-- Production KV namespace IDs are not configured in `wrangler.toml`.
-- GitHub refresh tokens are not persisted or rotated.
-- There is no account deletion endpoint for server-side settings/session/token state.
+- Production `SETTINGS_KV` namespace IDs are not configured in `wrangler.toml`.
 - Pages preview deployment CORS behavior is not finalized.
 - Production Cloudflare resource names and custom domains are not finalized.
+- Production GitHub App callback URLs are still placeholders.
 
 ## Production Storage Decision
 
-For MVP hosting, use Cloudflare KV for small server-side records:
+For MVP hosting, use Cloudflare Durable Objects for coordination and KV only for small settings records:
 
 - `SETTINGS_KV`: analytics/settings keyed by salted GitHub user id hash.
-- `SESSION_KV`: encrypted short-lived session records keyed by an opaque session id.
-- `OAUTH_STATE_KV`: short-lived OAuth state records keyed by opaque state.
-- Optional `TOKEN_KV`: encrypted GitHub user token material if sessions must survive browser restarts or imports need refresh token support.
+- `AUTH_COORDINATOR`: one-time OAuth state, encrypted short-lived session records, user session indexes, and basic request throttles.
+- Optional `SESSION_KV` and `OAUTH_STATE_KV`: fallback stores only if Durable Objects are unavailable in a non-production environment.
 
 Do not use KV for:
 - Starred repository records.
 - Repository analysis results.
 - Generated reports.
 - User exports.
+- Refresh tokens.
 
-Durable Objects can replace session/OAuth KV if we need stronger consistency or explicit per-session coordination. D1 is not needed for MVP unless settings/account deletion/audit requirements become relational.
+D1 is not needed for MVP unless settings/account deletion/audit requirements become relational.
 
 ## GitHub App Configuration
 
@@ -76,9 +81,10 @@ Production GitHub App settings:
 
 Token posture:
 - Store token material only server-side.
-- Prefer expiring user access tokens with refresh tokens.
-- Refresh tokens should be rotated whenever used.
-- If refresh token storage is deferred, require users to reconnect GitHub after the session expires.
+- Use expiring GitHub App user access tokens.
+- MVP does not persist refresh tokens.
+- Users reconnect GitHub after the access token or Forage session expires.
+- Revisit encrypted refresh-token rotation only if background refresh becomes a product requirement.
 
 ## Cloudflare Configuration
 
@@ -100,12 +106,9 @@ Worker production config:
   - `GITHUB_CLIENT_SECRET`
   - `SETTINGS_HASH_SALT`
   - `SESSION_ENCRYPTION_KEY`
-  - Future token encryption key when persistent token storage is added.
 - Bindings:
+  - `AUTH_COORDINATOR`
   - `SETTINGS_KV`
-  - `SESSION_KV`
-  - `OAUTH_STATE_KV`
-  - Future `TOKEN_KV` if refresh-token persistence is implemented.
 
 Local config:
 - Copy `apps/web/.env.example` to `apps/web/.env` when overriding the Worker origin.
@@ -118,13 +121,14 @@ Pages:
 - `apps/web/public/_headers` sets basic static security headers:
   - `X-Content-Type-Options: nosniff`
   - `X-Frame-Options: DENY`
+  - `Strict-Transport-Security`
   - `Referrer-Policy: strict-origin-when-cross-origin`
   - `Permissions-Policy` denying unused browser capabilities
+  - `Content-Security-Policy: frame-ancestors 'none'`
 
-Deferred:
-- Add a Content Security Policy after final hostnames are chosen.
-- CSP must include the Worker origin in `connect-src`.
-- Current inline theme bootstrap means either a nonce/hash approach or a narrow inline allowance is needed before enabling strict CSP.
+Astro:
+- `astro.config.mjs` enables CSP hashing for bundled scripts/styles.
+- CSP includes `PUBLIC_WORKER_ORIGIN` in `connect-src`, so production builds must set that environment variable.
 
 Worker:
 - API responses keep `Cache-Control: no-store`.
@@ -144,9 +148,9 @@ Production requirements:
 - `SameSite=Lax`
 - `Path=/`
 - Short OAuth state TTL, target 10 minutes.
-- Session TTL, target 8 hours unless refresh-token persistence is implemented.
+- Session TTL, target 8 hours, capped by GitHub access token expiry.
 - Logout deletes the session record and expires the cookie.
-- Account deletion deletes settings, sessions, OAuth state, and token records for the hashed GitHub user id.
+- Account deletion deletes settings and active sessions for the hashed GitHub user id.
 
 If web and API remain on separate subdomains, keep cookies host-only on the API hostname and continue using credentialed CORS from the web app.
 
@@ -169,17 +173,17 @@ Do not point local development at production KV by default.
 
 ## Pre-Launch Security Checklist
 
-- Configure production and staging `SESSION_KV` bindings.
-- Configure production and staging `OAUTH_STATE_KV` bindings.
-- Decide whether MVP persists refresh tokens or requires reconnect after session expiration.
-- If token material is persisted, encrypt it before writing to Cloudflare storage.
-- Add account deletion for the minimal server-side record.
+- Configure production and staging `AUTH_COORDINATOR` bindings and migrations.
+- Configure production and staging `SETTINGS_KV` bindings.
+- Keep MVP reconnect-only after GitHub session expiration.
 - Finalize production and staging hostnames.
 - Configure GitHub App callback URLs for production and staging.
 - Configure Cloudflare Pages env vars and Worker secrets.
-- Create production and staging KV namespaces.
+- Create production and staging settings KV namespaces.
 - Verify CORS rejects unconfigured origins.
+- Verify CSRF rejection on mutating Worker endpoints.
 - Verify cookies are `Secure`, `HttpOnly`, and `SameSite=Lax` on HTTPS.
+- Verify CSP allows the production Worker origin and blocks unexpected script/connect sources.
 - Verify no repository data is written to Worker logs, KV, D1, R2, or analytics.
 - Verify GitHub tokens are never returned to the browser.
 - Add deployment preview checks after Cloudflare bindings are configured.

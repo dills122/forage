@@ -64,11 +64,13 @@ Current server settings behavior:
 - `SETTINGS_HASH_SALT` should be set in deployed environments; the Worker falls back to `GITHUB_CLIENT_SECRET` when no dedicated salt is configured.
 
 Current server session behavior:
-- If `SESSION_KV` is bound, sessions persist in Cloudflare KV under opaque session ids.
-- `SESSION_KV` records are AES-GCM encrypted with `SESSION_ENCRYPTION_KEY`, falling back to `GITHUB_CLIENT_SECRET` for local/dev compatibility.
-- Session KV records use an 8-hour TTL.
-- If `OAUTH_STATE_KV` is bound, OAuth state records persist in Cloudflare KV with a 10-minute TTL and are deleted after callback validation.
-- If `SESSION_KV` or `OAUTH_STATE_KV` are not bound, the Worker uses in-memory development stores.
+- If `AUTH_COORDINATOR` is bound, sessions persist in a Cloudflare Durable Object under opaque session ids.
+- Session records are AES-GCM encrypted with `SESSION_ENCRYPTION_KEY`, falling back to `GITHUB_CLIENT_SECRET` for local/dev compatibility.
+- Session records use an 8-hour maximum lifetime and are capped by the GitHub access token expiry.
+- OAuth state records include the PKCE verifier, use a 10-minute lifetime, and are deleted on callback validation.
+- If `AUTH_COORDINATOR` is not bound, `SESSION_KV` and `OAUTH_STATE_KV` can be used as fallback stores.
+- If no Cloudflare storage is bound, the Worker uses in-memory development stores.
+- `DELETE /api/account` deletes the settings record and active session records for the authenticated user's salted GitHub user id hash.
 
 Current export behavior:
 - Exports are generated on demand.
