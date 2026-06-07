@@ -12,6 +12,7 @@
   import ImportPanel from "./ImportPanel.svelte";
   import LibraryFilters from "./LibraryFilters.svelte";
   import MetricGrid from "./MetricGrid.svelte";
+  import RepositoryDetailPanel from "./RepositoryDetailPanel.svelte";
   import RepositoryList from "./RepositoryList.svelte";
   import type { SessionResponse, WorkerConfig } from "../lib/api";
   import { WorkerApi } from "../lib/api";
@@ -35,6 +36,7 @@
     getCategoryOptions,
     getLanguageOptions,
     getLibrarySummary,
+    getRepositoryAnalysis,
     getTopLanguage,
     type LibrarySortMode,
     sortRepositoriesByStarredAt,
@@ -63,6 +65,7 @@
     languageFilter: string;
     categoryFilter: string;
     sortMode: LibrarySortMode;
+    selectedRepositoryId: number | null;
     importRun: ImportRunState | null;
     observedFields: string;
   }
@@ -97,6 +100,11 @@
   );
   $: languages = getLanguageOptions(state.repositories);
   $: categories = getCategoryOptions(state.repositories, state.analysisByRepositoryId);
+  $: selectedRepository = getSelectedRepository(visibleRepositories, state.selectedRepositoryId);
+  $: selectedRepositoryId = selectedRepository?.github_id ?? null;
+  $: selectedAnalysis = selectedRepository
+    ? getRepositoryAnalysis(selectedRepository, state.analysisByRepositoryId)
+    : null;
 
   onMount(() => {
     api = new WorkerApi(state.workerOrigin);
@@ -128,6 +136,7 @@
       languageFilter: "",
       categoryFilter: "",
       sortMode: "starred_at_desc",
+      selectedRepositoryId: null,
       importRun: null,
       observedFields: "Run an import to capture raw GitHub fields.",
     };
@@ -428,6 +437,21 @@
     return `This browser has local data for ${state.localLibraryOwner}. Connect GitHub when you want to refresh imports.`;
   }
 
+  function selectRepository(repositoryId: number) {
+    patchState({ selectedRepositoryId: repositoryId });
+  }
+
+  function getSelectedRepository(
+    repositories: ForageRepository[],
+    selectedRepositoryId: number | null,
+  ) {
+    if (repositories.length === 0) return null;
+    if (selectedRepositoryId === null) return repositories[0];
+    return (
+      repositories.find((repository) => repository.github_id === selectedRepositoryId) ??
+      repositories[0]
+    );
+  }
 </script>
 
 <main class="shell" id="forage-app" data-worker-origin={state.workerOrigin}>
@@ -525,11 +549,14 @@
       {languages}
       {categories}
     />
+    <RepositoryDetailPanel repository={selectedRepository} analysis={selectedAnalysis} />
     <RepositoryList
       repositoryCount={state.repositoryCount}
       {filteredRepositories}
       {visibleRepositories}
       analysisByRepositoryId={state.analysisByRepositoryId}
+      {selectedRepositoryId}
+      onSelectRepository={selectRepository}
     />
   </section>
 </main>
