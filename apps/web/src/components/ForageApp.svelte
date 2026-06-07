@@ -1,12 +1,4 @@
 <script lang="ts">
-  import { analyzeRepository } from "@forage/analysis";
-  import type { ImportRunState } from "@forage/core";
-  import {
-    createForageExport,
-    serializeForageExportJson,
-    serializeRepositoryAnalysisCsv,
-  } from "@forage/reporting";
-  import type { ApplicationSettings, ForageRepository, RepositoryAnalysis } from "@forage/shared";
   import { LogOut, Moon, Sun } from "@lucide/svelte";
   import { onMount } from "svelte";
   import ImportPanel from "./ImportPanel.svelte";
@@ -14,16 +6,18 @@
   import MetricGrid from "./MetricGrid.svelte";
   import RepositoryDetailPanel from "./RepositoryDetailPanel.svelte";
   import RepositoryList from "./RepositoryList.svelte";
-  import type { SessionResponse, WorkerConfig } from "../lib/api";
-  import { WorkerApi } from "../lib/api";
   import {
-    getAllAnalysisResults,
-    getAllRepositories,
-    getImportEvents,
-    getLocalLibraryProfile,
-    type LocalLibraryProfile,
-    resetLocalData,
-  } from "../lib/db";
+    createInitialState,
+    getLocalLibraryNoticeBody,
+    getLocalLibraryNoticeTitle,
+    getSelectedRepository,
+    getSettingsStatus,
+    type AppState,
+  } from "../lib/app-state";
+  import { WorkerApi } from "../lib/api";
+  import { loadAppStateSnapshot } from "../lib/app-refresh";
+  import { resetLocalData } from "../lib/db";
+  import { type ExportFormat, exportLocalLibrary } from "../lib/export-data";
   import {
     type ImportWorkerProgressMessage,
     type ImportWorkerTerminalMessage,
@@ -32,49 +26,15 @@
   } from "../lib/import-worker";
   import { LocalOperationLockError, withLocalOperationLock } from "../lib/local-operation-lock";
   import {
-    createCurrentAnalysisMap,
     filterRepositories,
     getCategoryOptions,
     getLanguageOptions,
     getLibrarySummary,
     getRepositoryAnalysis,
-    getTopLanguage,
-    type LibrarySortMode,
-    sortRepositoriesByStarredAt,
   } from "../lib/library";
-
-  interface AppState {
-    workerOrigin: string;
-    configStatus: string;
-    sessionStatus: string;
-    user: string;
-    repositoryCount: number;
-    latestImport: string;
-    progress: string;
-    localLibraryStatus: string;
-    authenticated: boolean;
-    sessionUser: SessionResponse["user"] | null;
-    localLibraryProfile: LocalLibraryProfile | null;
-    localLibraryOwner: string;
-    localLibraryConflict: boolean;
-    settings: ApplicationSettings;
-    settingsStatus: string;
-    repositories: ForageRepository[];
-    analysisByRepositoryId: Map<number, RepositoryAnalysis>;
-    topLanguage: string;
-    searchQuery: string;
-    languageFilter: string;
-    categoryFilter: string;
-    sortMode: LibrarySortMode;
-    selectedRepositoryId: number | null;
-    importRun: ImportRunState | null;
-    observedFields: string;
-  }
-
-  type Theme = "light" | "dark";
+  import { applyTheme, getCurrentTheme, toggleStoredTheme } from "../lib/theme";
 
   export let workerOrigin: string;
-  const themeStorageKey = "forage-theme";
 
   let api: WorkerApi;
   let activeImportSession: RepositoryImportSession | null = null;
@@ -109,39 +69,9 @@
 
   onMount(() => {
     api = new WorkerApi(state.workerOrigin);
-    applyTheme(getCurrentTheme());
+    updateThemeState(applyTheme(getCurrentTheme()));
     void refreshState();
   });
-
-  function createInitialState(origin: string): AppState {
-    return {
-      workerOrigin: origin,
-      configStatus: "Checking",
-      sessionStatus: "Checking",
-      user: "-",
-      repositoryCount: 0,
-      latestImport: "-",
-      progress: "Ready.",
-      localLibraryStatus: "No repository data stored locally.",
-      authenticated: false,
-      sessionUser: null,
-      localLibraryProfile: null,
-      localLibraryOwner: "-",
-      localLibraryConflict: false,
-      settings: defaultSettings(),
-      settingsStatus: "Connect GitHub to manage this setting.",
-      repositories: [],
-      analysisByRepositoryId: new Map(),
-      topLanguage: "-",
-      searchQuery: "",
-      languageFilter: "",
-      categoryFilter: "",
-      sortMode: "starred_at_desc",
-      selectedRepositoryId: null,
-      importRun: null,
-      observedFields: "Run an import to capture raw GitHub fields.",
-    };
-  }
 
   function patchState(patch: Partial<AppState>) {
     state = {
@@ -151,80 +81,11 @@
   }
 
   function toggleTheme() {
-    const nextTheme: Theme = getCurrentTheme() === "dark" ? "light" : "dark";
-    localStorage.setItem(themeStorageKey, nextTheme);
-    applyTheme(nextTheme);
-  }
-
-  function getCurrentTheme(): Theme {
-    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-  }
-
-  function applyTheme(theme: Theme) {
-    document.documentElement.dataset.theme = theme;
-    isDarkTheme = theme === "dark";
-    themeLabel = isDarkTheme ? "Dark" : "Light";
+    updateThemeState(toggleStoredTheme());
   }
 
   async function refreshState() {
-    try {
-      const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
-        getAllRepositories(),
-        getImportEvents(),
-        getAllAnalysisResults(),
-        getLocalLibraryProfile(),
-      ]);
-      const [config, session] = await Promise.all([
-        api.getConfig().catch((error: Error) => ({
-          error: error.message,
-          has_github_client_id: false,
-          has_github_client_secret: false,
-        })),
-        api.getSession().catch(
-          (error: Error): SessionResponse => ({
-            authenticated: false,
-            error: error.message,
-          }),
-        ),
-      ]);
-      const settingsResponse = session.authenticated
-        ? await api.getSettings().catch(() => null)
-        : null;
-      const localLibraryOwner = getLocalLibraryOwner(localLibraryProfile, repositories.length);
-      const localLibraryConflict = hasLocalLibraryConflict(localLibraryProfile, session.user);
-
-      patchState({
-        configStatus: getConfigStatus(config),
-        authenticated: session.authenticated,
-        sessionUser: session.user ?? null,
-        sessionStatus: session.authenticated ? "Authenticated" : session.error || "Disconnected",
-        repositoryCount: repositories.length,
-        latestImport: events[0] ? `${events[0].status} (${events[0].repositories})` : "-",
-        repositories: sortRepositoriesByStarredAt(repositories),
-        analysisByRepositoryId: createCurrentAnalysisMap(analysisResults),
-        topLanguage: getTopLanguage(repositories),
-        localLibraryProfile,
-        localLibraryOwner,
-        localLibraryConflict,
-        user: getUserDisplay(session, localLibraryProfile, repositories.length),
-        localLibraryStatus: getLocalLibraryStatus(
-          repositories.length,
-          session.authenticated,
-          localLibraryConflict,
-          localLibraryOwner,
-          session.user?.login ?? null,
-        ),
-        settings: settingsResponse?.settings ?? defaultSettings(),
-        settingsStatus: getSettingsStatus(session.authenticated, settingsResponse?.settings),
-      });
-    } catch (error) {
-      patchState({
-        configStatus: error instanceof Error ? error.message : "Worker unavailable",
-        sessionStatus: "Unavailable",
-        settings: defaultSettings(),
-        settingsStatus: "Settings unavailable.",
-      });
-    }
+    patchState(await loadAppStateSnapshot(api));
   }
 
   async function logout() {
@@ -311,46 +172,8 @@
     await refreshState();
   }
 
-  async function exportData(format: "json" | "csv") {
-    const [repositories, events, analysisResults, localLibraryProfile] = await Promise.all([
-      getAllRepositories(),
-      getImportEvents(),
-      getAllAnalysisResults(),
-      getLocalLibraryProfile(),
-    ]);
-    const analysisByRepositoryId = createCurrentAnalysisMap(analysisResults);
-    const payload = createForageExport({
-      repositories,
-      analysis_results: repositories.map(
-        (repository) =>
-          analysisByRepositoryId.get(repository.github_id) ?? analyzeRepository(repository),
-      ),
-      latest_import_event: events[0] ?? null,
-      local_library_profile: localLibraryProfile,
-    });
-    const isJson = format === "json";
-    const contents = isJson
-      ? serializeForageExportJson(payload)
-      : serializeRepositoryAnalysisCsv(payload);
-    const mimeType = isJson ? "application/json" : "text/csv";
-    const extension = isJson ? "json" : "csv";
-    downloadText(
-      contents,
-      mimeType,
-      `forage-export-${new Date().toISOString().slice(0, 10)}.${extension}`,
-    );
-  }
-
-  function downloadText(contents: string, mimeType: string, filename: string) {
-    const blob = new Blob([contents], {
-      type: mimeType,
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+  async function exportData(format: ExportFormat) {
+    await exportLocalLibrary(format);
   }
 
   async function updateAnalyticsSetting(analyticsEnabled: boolean) {
@@ -380,98 +203,13 @@
     }
   }
 
-  function getConfigStatus(config: Pick<WorkerConfig, "github_configured" | "has_github_client_id" | "has_github_client_secret"> & {
-    error?: string;
-  }) {
-    if (config.error) return config.error;
-    const configured =
-      config.github_configured ?? Boolean(config.has_github_client_id && config.has_github_client_secret);
-    return configured ? "Ready" : "Missing GitHub env";
-  }
-
-  function getLocalLibraryStatus(
-    repositoryCount: number,
-    authenticated: boolean,
-    localLibraryConflict: boolean,
-    localLibraryOwner: string,
-    sessionLogin: string | null,
-  ) {
-    if (repositoryCount === 0) return "No repository data stored locally.";
-    if (localLibraryConflict) {
-      return `${repositoryCount} repositories stored locally for ${localLibraryOwner}; current GitHub session is ${sessionLogin}.`;
-    }
-    if (authenticated) return `${repositoryCount} repositories stored locally and ready to refresh.`;
-    return `${repositoryCount} repositories stored locally; GitHub is disconnected.`;
-  }
-
-  function getLocalLibraryOwner(profile: LocalLibraryProfile | null, repositoryCount: number) {
-    if (repositoryCount === 0) return "-";
-    return profile?.github_login ? profile.github_login : "Unknown local owner";
-  }
-
-  function defaultSettings(): ApplicationSettings {
-    return {
-      analytics_enabled: false,
-      updated_at: null,
-    };
-  }
-
-  function getSettingsStatus(authenticated: boolean, settings: ApplicationSettings | undefined) {
-    if (!authenticated) return "Connect GitHub to manage this setting.";
-    if (!settings?.analytics_enabled) return "Off. Repository data stays in this browser.";
-    return "On. Anonymous product analytics only; repository data stays in this browser.";
-  }
-
-  function getUserDisplay(
-    session: SessionResponse,
-    profile: LocalLibraryProfile | null,
-    repositoryCount: number,
-  ) {
-    if (session.authenticated) return session.user?.login ?? "-";
-    if (repositoryCount > 0 && profile?.github_login)
-      return `${profile.github_login} (not connected)`;
-    if (repositoryCount > 0) return "Not connected";
-    return "-";
-  }
-
-  function hasLocalLibraryConflict(
-    profile: LocalLibraryProfile | null,
-    sessionUser: SessionResponse["user"] | undefined,
-  ) {
-    if (!profile?.github_login || !sessionUser?.login) return false;
-    return profile.github_login.toLowerCase() !== sessionUser.login.toLowerCase();
-  }
-
-  function getLocalLibraryNoticeTitle() {
-    if (state.localLibraryConflict) return "Different GitHub account connected";
-    if (state.authenticated) return "Local library synced to this browser";
-    return "Local library available";
-  }
-
-  function getLocalLibraryNoticeBody() {
-    if (state.localLibraryConflict) {
-      return `This browser has local data for ${state.localLibraryOwner}, but the current GitHub session is ${state.sessionUser?.login}. Export or reset local data before importing another account.`;
-    }
-    if (state.authenticated) {
-      return `This browser has local data for ${state.localLibraryOwner}. Refresh imports when you want to update it.`;
-    }
-    return `This browser has local data for ${state.localLibraryOwner}. Connect GitHub when you want to refresh imports.`;
-  }
-
   function selectRepository(repositoryId: number) {
     patchState({ selectedRepositoryId: repositoryId });
   }
 
-  function getSelectedRepository(
-    repositories: ForageRepository[],
-    selectedRepositoryId: number | null,
-  ) {
-    if (repositories.length === 0) return null;
-    if (selectedRepositoryId === null) return repositories[0];
-    return (
-      repositories.find((repository) => repository.github_id === selectedRepositoryId) ??
-      repositories[0]
-    );
+  function updateThemeState(themeState: ReturnType<typeof applyTheme>) {
+    isDarkTheme = themeState.isDarkTheme;
+    themeLabel = themeState.themeLabel;
   }
 </script>
 
@@ -526,8 +264,17 @@
 
   {#if state.repositoryCount > 0}
     <section id="local-library-notice" class="notice" class:warning={state.localLibraryConflict}>
-      <strong id="local-library-notice-title">{getLocalLibraryNoticeTitle()}</strong>
-      <span id="local-library-notice-body">{getLocalLibraryNoticeBody()}</span>
+      <strong id="local-library-notice-title">
+        {getLocalLibraryNoticeTitle(state.localLibraryConflict, state.authenticated)}
+      </strong>
+      <span id="local-library-notice-body">
+        {getLocalLibraryNoticeBody({
+          authenticated: state.authenticated,
+          localLibraryConflict: state.localLibraryConflict,
+          localLibraryOwner: state.localLibraryOwner,
+          sessionLogin: state.sessionUser?.login ?? null,
+        })}
+      </span>
     </section>
   {/if}
 
