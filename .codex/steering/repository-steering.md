@@ -13,6 +13,7 @@ Core priorities:
 - no server-side repository data storage
 - stable shared TypeScript contracts
 - stable typed contracts between modules
+- config/constant driven behavior instead of repeated magic strings or values
 - maintainable local workflows
 
 ## Active Boundaries
@@ -41,3 +42,11 @@ Safe default changes:
 - endpoint hardening and validation
 - focused test additions
 - typing improvements
+
+## Configuration Standards
+
+- Prefer named constants or typed configuration objects for route paths, storage keys, cookie names, rate limits, TTLs, security headers, score weights, category rules, labels, and user-facing status text.
+- Keep constants private to their owning module when only one module uses them.
+- Promote constants to shared typed config modules when values are reused across modules, packages, workers, or tests.
+- Avoid duplicating string literals across runtime code and tests; tests should import stable constants or assert behavior through public APIs when possible.
+- Treat scoring and category changes as config changes first, then algorithm changes only when config cannot express the behavior clearly.

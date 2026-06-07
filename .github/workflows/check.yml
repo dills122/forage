@@ -42,5 +42,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run quality gate
-        run: npm run check
+      - name: Check scripts
+        run: npm run check:scripts
+
+      - name: Check pre-MVP syntax
+        run: npm run check:pre-mvp
+
+      - name: Check analysis review fixture
+        run: npm run check:analysis
+
+      - name: Check docs
+        run: npm run check:docs
+
+      - name: Check workspace
+        run: npm run check:workspace
+
+      - name: Test packages with coverage
+        run: npm run test:coverage
+
+      - name: Test web app
+        run: npm run check:web-tests
+
+      - name: Test Worker
+        run: npm run check:worker-tests
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check Astro formatting
+        run: npm run format:astro:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test web build
+        run: npm run check:web-smoke
