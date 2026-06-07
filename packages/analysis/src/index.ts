@@ -1,7 +1,6 @@
 import type {
   CategoryMatch,
   CategoryMatchReason,
-  CategoryRule,
   ForageRepository,
   InsightLabel,
   RepositoryAnalysis,
@@ -9,243 +8,30 @@ import type {
   ScoreSet,
   ScoreValue,
 } from "@forage/shared";
+import {
+  type AnalysisPlan,
+  analysisPlan,
+  analysisVersion,
+  categoryRulesVersion,
+  scoreVersion,
+} from "./analysis-config";
+import { defaultCategoryRules } from "./category-config";
+import {
+  dayMs,
+  defaultStaleAgeScore,
+  freshnessScoreConfig,
+  insightLabelConfig,
+  maintenancePenaltyConfig,
+  popularityScoreConfig,
+  scoreAgeThresholds,
+  scoreImpactThresholds,
+  scoreWeights,
+  topicDensityConfig,
+  yearDays,
+} from "./scoring-config";
 
-export interface AnalysisPlan {
-  category_model: "weighted-rules";
-  scoring_model: "user-agnostic-foundational";
-  personalization: "deferred-match-score";
-}
-
-export const analysisPlan: AnalysisPlan = {
-  category_model: "weighted-rules",
-  scoring_model: "user-agnostic-foundational",
-  personalization: "deferred-match-score",
-};
-
-export const analysisVersion = "analysis-v0.1.0";
-export const categoryRulesVersion = "category-rules-v0.1.0";
-export const scoreVersion = "foundational-v0.1.0";
-
-export const defaultCategoryRules: CategoryRule[] = [
-  languageRule("language-javascript", "JavaScript", "JavaScript"),
-  languageRule("language-typescript", "TypeScript", "TypeScript"),
-  languageRule("language-python", "Python", "Python"),
-  languageRule("language-go", "Go", "Go"),
-  languageRule("language-rust", "Rust", "Rust"),
-  languageRule("language-csharp", "C#", "C#"),
-  languageRule("language-cpp", "C++", "C++"),
-  languageRule("language-c", "C", "C"),
-  languageRule("language-css", "CSS", "CSS"),
-  languageRule("language-html", "HTML", "HTML"),
-  languageRule("language-java", "Java", "Java"),
-  languageRule("language-ruby", "Ruby", "Ruby"),
-  languageRule("language-shell", "Shell", "Shell"),
-  languageRule("language-solidity", "Solidity", "Solidity"),
-  languageRule("language-php", "PHP", "PHP"),
-  languageRule("language-haskell", "Haskell", "Haskell"),
-  languageRule("language-vim-script", "Vim Script", "Vim script"),
-  languageRule("language-nim", "Nim", "Nim"),
-  languageRule("language-objective-c", "Objective-C", "Objective-C"),
-  languageRule("language-swift", "Swift", "Swift"),
-  languageRule("language-kotlin", "Kotlin", "Kotlin"),
-  languageRule("language-dart", "Dart", "Dart"),
-  languageRule("language-lua", "Lua", "Lua"),
-  languageRule("language-elixir", "Elixir", "Elixir"),
-  languageRule("language-clojure", "Clojure", "Clojure"),
-  languageRule("language-scala", "Scala", "Scala"),
-  languageRule("language-assembly", "Assembly", "Assembly"),
-  languageRule("language-dockerfile", "Dockerfile", "Dockerfile"),
-  languageRule("language-apacheconf", "ApacheConf", "ApacheConf"),
-  languageRule("language-zig", "Zig", "Zig"),
-  languageRule("language-vue", "Vue", "Vue"),
-  languageRule("language-stylus", "Stylus", "Stylus"),
-  {
-    id: "frontend",
-    label: "Frontend",
-    family: "frontend",
-    threshold: 3,
-    languages: terms(["JavaScript", "TypeScript", "CSS", "HTML"], 1),
-    topics: terms(["frontend", "ui", "ux", "css", "html", "react", "vue", "svelte", "astro"], 2),
-    keywords: terms(["frontend", "component", "design system", "browser", "web"], 2),
-  },
-  {
-    id: "backend",
-    label: "Backend",
-    family: "backend",
-    threshold: 3,
-    languages: terms(["Go", "Rust", "Python", "Java", "C#", "Ruby", "PHP"], 1),
-    topics: terms(["api", "server", "backend", "database", "queue", "worker"], 2),
-    keywords: terms(["api", "server", "backend", "service", "database"], 2),
-  },
-  {
-    id: "developer-tooling",
-    label: "Developer Tooling",
-    family: "developer-tooling",
-    threshold: 3,
-    topics: terms(
-      [
-        "cli",
-        "lint",
-        "linters",
-        "lint-checking",
-        "syntax-checker",
-        "automation",
-        "validation",
-        "formatter",
-        "compiler",
-        "sdk",
-        "git",
-        "vim-plugin",
-      ],
-      2,
-    ),
-    keywords: terms(
-      [
-        "cli",
-        "tool",
-        "tools",
-        "utility",
-        "utilities",
-        "developer",
-        "automation",
-        "lint",
-        "build",
-        "compiler",
-        "git",
-      ],
-      2,
-    ),
-  },
-  {
-    id: "devops",
-    label: "DevOps",
-    family: "devops",
-    threshold: 3,
-    topics: terms(
-      [
-        "docker",
-        "kubernetes",
-        "terraform",
-        "ci",
-        "cd",
-        "deploy",
-        "observability",
-        "tracing",
-        "distributed-tracing",
-      ],
-      2,
-    ),
-    keywords: terms(
-      [
-        "deploy",
-        "container",
-        "infrastructure",
-        "pipeline",
-        "monitoring",
-        "tracing",
-        "observability",
-      ],
-      2,
-    ),
-  },
-  {
-    id: "data",
-    label: "Data",
-    family: "data",
-    threshold: 3,
-    languages: terms(["Python", "R", "Julia", "SQL"], 1),
-    topics: terms(["data", "analytics", "machine-learning", "ml", "database", "etl"], 2),
-    keywords: terms(["data", "analytics", "machine learning", "database", "dataset"], 2),
-  },
-  {
-    id: "testing",
-    label: "Testing",
-    family: "testing",
-    threshold: 3,
-    topics: terms(["test", "testing", "e2e", "mock", "fixture", "playwright", "vitest", "jest"], 2),
-    keywords: terms(["test", "testing", "mock", "fixture", "assertion"], 2),
-  },
-  {
-    id: "documentation",
-    label: "Documentation",
-    family: "documentation",
-    threshold: 3,
-    topics: terms(
-      [
-        "docs",
-        "documentation",
-        "mdx",
-        "markdown",
-        "commonmark",
-        "markup",
-        "document",
-        "publishing",
-        "static-site",
-      ],
-      2,
-    ),
-    keywords: terms(["documentation", "docs", "guide", "manual", "markdown", "markup"], 2),
-  },
-  {
-    id: "security",
-    label: "Security",
-    family: "security",
-    threshold: 3,
-    topics: terms(["security", "auth", "oauth", "crypto", "vulnerability", "secrets"], 2),
-    keywords: terms(["security", "authentication", "authorization", "oauth", "crypto"], 2),
-  },
-  {
-    id: "learning-resource",
-    label: "Learning Resource",
-    family: "learning",
-    threshold: 3,
-    topics: terms(
-      [
-        "awesome",
-        "tutorial",
-        "learning",
-        "examples",
-        "course",
-        "book",
-        "education",
-        "learn-to-code",
-        "training-materials",
-        "programming",
-      ],
-      2,
-    ),
-    keywords: terms(
-      [
-        "awesome",
-        "tutorial",
-        "learn",
-        "learning",
-        "resources",
-        "book",
-        "guide",
-        "examples",
-        "courses",
-      ],
-      2,
-    ),
-  },
-  {
-    id: "library",
-    label: "Library",
-    family: "library",
-    threshold: 3,
-    topics: terms(["library", "package", "sdk", "component", "plugin"], 2),
-    keywords: terms(["library", "package", "sdk", "framework", "component"], 2),
-  },
-  {
-    id: "application",
-    label: "Application",
-    family: "application",
-    threshold: 3,
-    topics: terms(["app", "application", "desktop-app", "webapp"], 2),
-    keywords: terms(["application", "app", "client", "dashboard"], 2),
-  },
-];
+export type { AnalysisPlan };
+export { analysisPlan, analysisVersion, categoryRulesVersion, defaultCategoryRules, scoreVersion };
 
 export function analyzeRepository(
   repository: ForageRepository,
@@ -338,43 +124,47 @@ export function scoreRepository(repository: ForageRepository, now = new Date()):
     metadata_quality: scoreMetadataQuality(repository),
     topic_density: scoreTopicDensity(repository),
     overall: combineScores([
-      [activity, 0.3],
-      [popularity, 0.25],
-      [freshness, 0.2],
-      [maintenance, 0.25],
+      [activity, scoreWeights.activity],
+      [popularity, scoreWeights.popularity],
+      [freshness, scoreWeights.freshness],
+      [maintenance, scoreWeights.maintenance],
     ]),
   };
 }
 
 function scoreActivity(repository: ForageRepository, now: Date): ScoreValue {
   const pushedDays = daysSince(repository.pushed_at ?? repository.updated_at, now);
-  const value = ageScore(pushedDays, [
-    [30, 100],
-    [90, 88],
-    [180, 74],
-    [365, 58],
-    [730, 34],
-  ]);
+  const value = ageScore(pushedDays, scoreAgeThresholds.activityPushedDays);
   return scoreValue(value, [
     explanation(
       "activity",
       pushedDays === null
         ? "No push timestamp available."
         : `Last pushed ${formatDays(pushedDays)} ago.`,
-      value >= 58 ? "positive" : "negative",
+      value >= scoreImpactThresholds.activityPositive ? "positive" : "negative",
     ),
   ]);
 }
 
 function scorePopularity(repository: ForageRepository): ScoreValue {
-  const starScore = clamp(Math.round((Math.log10(repository.stars + 1) / 5) * 100), 0, 100);
-  const forkScore = clamp(Math.round((Math.log10(repository.forks + 1) / 4) * 100), 0, 100);
-  const value = Math.round(starScore * 0.75 + forkScore * 0.25);
+  const starScore = clamp(
+    Math.round((Math.log10(repository.stars + 1) / popularityScoreConfig.starLogCap) * 100),
+    0,
+    100,
+  );
+  const forkScore = clamp(
+    Math.round((Math.log10(repository.forks + 1) / popularityScoreConfig.forkLogCap) * 100),
+    0,
+    100,
+  );
+  const value = Math.round(
+    starScore * popularityScoreConfig.starWeight + forkScore * popularityScoreConfig.forkWeight,
+  );
   return scoreValue(value, [
     explanation(
       "popularity",
       `${repository.stars.toLocaleString()} stars and ${repository.forks.toLocaleString()} forks with logarithmic caps.`,
-      value >= 50 ? "positive" : "neutral",
+      value >= scoreImpactThresholds.popularityPositive ? "positive" : "neutral",
     ),
   ]);
 }
@@ -382,61 +172,49 @@ function scorePopularity(repository: ForageRepository): ScoreValue {
 function scoreFreshness(repository: ForageRepository, now: Date): ScoreValue {
   const createdDays = daysSince(repository.created_at, now);
   const updatedDays = daysSince(repository.updated_at, now);
-  const createdScore = ageScore(createdDays, [
-    [180, 88],
-    [365, 78],
-    [730, 62],
-    [1460, 46],
-    [2920, 30],
-  ]);
-  const updatedScore = ageScore(updatedDays, [
-    [90, 100],
-    [180, 84],
-    [365, 68],
-    [730, 48],
-    [1460, 28],
-  ]);
-  const value = Math.round(createdScore * 0.35 + updatedScore * 0.65);
+  const createdScore = ageScore(createdDays, scoreAgeThresholds.freshnessCreatedDays);
+  const updatedScore = ageScore(updatedDays, scoreAgeThresholds.freshnessUpdatedDays);
+  const value = Math.round(
+    createdScore * freshnessScoreConfig.createdWeight +
+      updatedScore * freshnessScoreConfig.updatedWeight,
+  );
   return scoreValue(value, [
     explanation(
       "freshness",
       updatedDays === null
         ? "No update timestamp available."
         : `Last updated ${formatDays(updatedDays)} ago.`,
-      value >= 55 ? "positive" : "neutral",
+      value >= scoreImpactThresholds.freshnessPositive ? "positive" : "neutral",
     ),
   ]);
 }
 
 function scoreMaintenance(repository: ForageRepository, now: Date): ScoreValue {
   const updatedDays = daysSince(repository.updated_at, now);
-  let value = ageScore(updatedDays, [
-    [90, 90],
-    [180, 78],
-    [365, 64],
-    [730, 44],
-    [1460, 24],
-  ]);
+  let value = ageScore(updatedDays, scoreAgeThresholds.maintenanceUpdatedDays);
   const explanations: ScoreExplanation[] = [
     explanation(
       "maintenance",
       updatedDays === null
         ? "No update timestamp available."
         : `Maintenance recency is ${formatDays(updatedDays)} old.`,
-      value >= 64 ? "positive" : "neutral",
+      value >= scoreImpactThresholds.maintenancePositive ? "positive" : "neutral",
     ),
   ];
 
   if (repository.archived) {
-    value -= 35;
+    value -= maintenancePenaltyConfig.archived;
     explanations.push(explanation("archived", "Repository is archived.", "negative"));
   }
   if (repository.disabled) {
-    value -= 45;
+    value -= maintenancePenaltyConfig.disabled;
     explanations.push(explanation("disabled", "Repository is disabled.", "negative"));
   }
-  if (repository.open_issues > 200 && repository.stars < 1000) {
-    value -= 10;
+  if (
+    repository.open_issues > maintenancePenaltyConfig.highIssueLoadOpenIssues &&
+    repository.stars < maintenancePenaltyConfig.highIssueLoadStars
+  ) {
+    value -= maintenancePenaltyConfig.highIssueLoad;
     explanations.push(
       explanation("issue-load", "High open issue count relative to popularity.", "negative"),
     );
@@ -464,7 +242,7 @@ function scoreMetadataQuality(repository: ForageRepository): ScoreValue {
 }
 
 function scoreTopicDensity(repository: ForageRepository): ScoreValue {
-  const value = clamp(repository.topics.length * 14, 0, 100);
+  const value = clamp(repository.topics.length * topicDensityConfig.perTopicPoints, 0, 100);
   return scoreValue(value, [
     explanation(
       "topics",
@@ -478,15 +256,22 @@ function buildLabels(repository: ForageRepository, scores: ScoreSet, now: Date):
   const labels: InsightLabel[] = [];
   const pushedDays = daysSince(repository.pushed_at ?? repository.updated_at, now);
 
-  if (scores.overall.value >= 80) {
+  if (scores.overall.value >= insightLabelConfig.worthRevisitingOverall) {
     labels.push(label("worth-revisiting", "Worth Revisiting", ["High foundational score."]));
   }
-  if (repository.stars >= 1000 && scores.activity.value >= 70) {
+  if (
+    repository.stars >= insightLabelConfig.stillActiveStars &&
+    scores.activity.value >= insightLabelConfig.stillActiveActivity
+  ) {
     labels.push(
       label("still-active", "Still Active", ["Popular repository with recent activity."]),
     );
   }
-  if (repository.stars >= 1000 && pushedDays !== null && pushedDays > 730) {
+  if (
+    repository.stars >= insightLabelConfig.deadButInterestingStars &&
+    pushedDays !== null &&
+    pushedDays > insightLabelConfig.deadButInterestingPushedDays
+  ) {
     labels.push(
       label("dead-but-interesting", "Dead But Interesting", [
         "Popular repository with stale activity.",
@@ -494,9 +279,9 @@ function buildLabels(repository: ForageRepository, scores: ScoreSet, now: Date):
     );
   }
   if (
-    repository.stars < 250 &&
+    repository.stars < insightLabelConfig.smallPolishedStars &&
     scores.metadata_quality?.value &&
-    scores.metadata_quality.value >= 80
+    scores.metadata_quality.value >= insightLabelConfig.smallPolishedMetadataQuality
   ) {
     labels.push(
       label("small-polished", "Small But Polished", [
@@ -519,20 +304,6 @@ function combineScores(weightedScores: Array<[ScoreValue, number]>): ScoreValue 
       "neutral",
     ),
   ]);
-}
-
-function languageRule(id: string, label: string, language: string): CategoryRule {
-  return {
-    id,
-    label,
-    family: "language",
-    threshold: 2,
-    languages: terms([language], 2),
-  };
-}
-
-function terms(values: string[], weight: number) {
-  return values.map((value) => ({ value, weight }));
 }
 
 function scoreValue(value: number, explanations: ScoreExplanation[]): ScoreValue {
@@ -566,7 +337,7 @@ function ageScore(days: number | null, thresholds: Array<[number, number]>) {
     if (days <= maxDays) return value;
   }
 
-  return 12;
+  return defaultStaleAgeScore;
 }
 
 function daysSince(value: string | null, now: Date) {
@@ -575,14 +346,14 @@ function daysSince(value: string | null, now: Date) {
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return null;
 
-  return Math.max(0, Math.floor((now.getTime() - timestamp) / 86_400_000));
+  return Math.max(0, Math.floor((now.getTime() - timestamp) / dayMs));
 }
 
 function formatDays(days: number) {
   if (days === 0) return "today";
   if (days === 1) return "1 day";
-  if (days < 365) return `${days} days`;
-  return `${Math.floor(days / 365)} year(s)`;
+  if (days < yearDays) return `${days} days`;
+  return `${Math.floor(days / yearDays)} year(s)`;
 }
 
 function normalizeText(value: string) {
