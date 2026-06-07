@@ -12,6 +12,10 @@ Items intentionally deferred.
 - Exact GitHub fields used in the canonical model
 - IndexedDB schema and migration strategy
 - UI details beyond the first functional dashboard
+- Exact production hostnames
+- Persistent session/OAuth-state storage implementation
+- Whether MVP persists GitHub refresh tokens or requires reconnect after session expiry
+- Account deletion behavior for minimal server records
 
 Current philosophy:
 
@@ -26,3 +30,6 @@ Use a GitHub App user authorization flow for the website. Forage should behave a
 
 Base scoring direction:
 Repository scores are user-agnostic. Any future preference-aware ranking should be represented as a separate Match Score rather than changing the base score.
+
+Hosting/security direction:
+Use Cloudflare Pages for the static web app and a separate Cloudflare Worker for auth/session/settings/API proxying. See [Hosting And Security Plan](./20-hosting-and-security.md).

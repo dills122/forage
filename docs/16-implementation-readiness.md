@@ -42,3 +42,11 @@ Definition of ready for broader MVP work:
 - Shared packages have tests around normalization, category matching, scoring, and export shape.
 - Auth/session behavior is documented and deployable to Cloudflare.
 - Local schema versions and migrations are implemented before any public testing.
+
+Definition of ready for hosted testing:
+- Cloudflare Pages and Worker hostnames are finalized.
+- Worker sessions and OAuth state are moved out of memory.
+- GitHub token expiration/refresh behavior is decided.
+- Server-side settings, sessions, OAuth state, and token records have deletion behavior.
+- Production secrets and KV bindings are configured outside git.
+- Security header and CORS behavior is verified on HTTPS.

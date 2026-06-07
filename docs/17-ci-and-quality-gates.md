@@ -56,3 +56,4 @@ Future gates:
 - Add package-level unit tests for IndexedDB migrations.
 - Add browser smoke tests once the app has stable flows beyond the current import slice.
 - Add deployment preview checks when Cloudflare environment bindings are defined.
+- Add a hosted smoke check for production/staging `/api/health` and static asset headers once Cloudflare domains are configured.

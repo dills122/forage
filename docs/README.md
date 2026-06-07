@@ -27,6 +27,7 @@ This directory contains the planning and technical decision material for Forage.
 - [CI And Quality Gates](./17-ci-and-quality-gates.md)
 - [Analysis Review](./18-analysis-review.md)
 - [Code Audit](./19-code-audit.md)
+- [Hosting And Security Plan](./20-hosting-and-security.md)
 
 ## Architecture Decisions
 

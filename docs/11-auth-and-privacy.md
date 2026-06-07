@@ -39,8 +39,14 @@ Privacy requirements:
 - Document what is stored server-side in user-facing language.
 
 Open implementation decisions:
-- Exact token storage approach, using the normal secure pattern for Cloudflare and GitHub App auth.
-- Session duration, using conventional web-app defaults.
+- Exact token storage approach, with a preference for expiring GitHub App user access tokens.
+- Whether MVP persists refresh tokens or requires reconnect after session expiry.
+- Persistent session storage implementation for Cloudflare.
+- Persistent OAuth state storage implementation for Cloudflare.
+- Session duration, target 8 hours unless refresh-token persistence is implemented.
 - Token refresh behavior, using GitHub App defaults where possible.
 - Account deletion behavior for the minimal server record.
 - Whether settings are keyed by a GitHub hash, app-specific user id, or both.
+
+Hosting/security reference:
+See [Hosting And Security Plan](./20-hosting-and-security.md).

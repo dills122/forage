@@ -1,5 +1,7 @@
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-GITHUB_REDIRECT_URI=http://127.0.0.1:8787/auth/github/callback
-WEB_ORIGIN=http://127.0.0.1:4321
-GITHUB_API_VERSION=2022-11-28
+# Local-only Worker secrets/config. Copy to apps/worker/.dev.vars and never commit real values.
+GITHUB_CLIENT_ID="github-app-client-id"
+GITHUB_CLIENT_SECRET="github-app-client-secret"
+GITHUB_REDIRECT_URI="http://127.0.0.1:8787/auth/github/callback"
+WEB_ORIGIN="http://127.0.0.1:4321"
+GITHUB_API_VERSION="2022-11-28"
+SETTINGS_HASH_SALT="local-development-salt"
