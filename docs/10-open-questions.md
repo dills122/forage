@@ -13,7 +13,6 @@ Items intentionally deferred.
 - IndexedDB schema and migration strategy
 - UI details beyond the first functional dashboard
 - Exact production hostnames
-- Persistent session/OAuth-state storage implementation
 - Whether MVP persists GitHub refresh tokens or requires reconnect after session expiry
 - Account deletion behavior for minimal server records
 

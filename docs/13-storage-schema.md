@@ -63,6 +63,13 @@ Current server settings behavior:
 - If `SETTINGS_KV` is not bound, settings use `in-memory-dev` session storage for local development.
 - `SETTINGS_HASH_SALT` should be set in deployed environments; the Worker falls back to `GITHUB_CLIENT_SECRET` when no dedicated salt is configured.
 
+Current server session behavior:
+- If `SESSION_KV` is bound, sessions persist in Cloudflare KV under opaque session ids.
+- `SESSION_KV` records are AES-GCM encrypted with `SESSION_ENCRYPTION_KEY`, falling back to `GITHUB_CLIENT_SECRET` for local/dev compatibility.
+- Session KV records use an 8-hour TTL.
+- If `OAUTH_STATE_KV` is bound, OAuth state records persist in Cloudflare KV with a 10-minute TTL and are deleted after callback validation.
+- If `SESSION_KV` or `OAUTH_STATE_KV` are not bound, the Worker uses in-memory development stores.
+
 Current export behavior:
 - Exports are generated on demand.
 - JSON exports include repositories, latest import event, local library profile, and current analysis results.

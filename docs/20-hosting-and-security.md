@@ -31,15 +31,15 @@ Already implemented:
 - CORS restricted to `WEB_ORIGIN`.
 - `HttpOnly` cookies with `SameSite=Lax`; `Secure` is added automatically for HTTPS requests.
 - Settings can persist to `SETTINGS_KV` under a salted GitHub user id hash.
+- Session state can persist to `SESSION_KV` with an encrypted AES-GCM payload and an 8-hour TTL.
+- OAuth state can persist to `OAUTH_STATE_KV` with a 10-minute TTL and one-time consumption.
+- Worker JSON, redirect, and preflight responses include basic security headers.
 - Repository data, analysis results, reports, and exports stay out of Cloudflare.
 
 Not production-ready yet:
-- Session state is in-memory and will not survive Worker isolate eviction.
-- OAuth state is in-memory and will not survive Worker isolate eviction.
-- GitHub user access token material is held only in memory.
+- Production KV namespace IDs are not configured in `wrangler.toml`.
 - GitHub refresh tokens are not persisted or rotated.
 - There is no account deletion endpoint for server-side settings/session/token state.
-- Worker security headers are minimal.
 - Pages preview deployment CORS behavior is not finalized.
 - Production Cloudflare resource names and custom domains are not finalized.
 
@@ -48,7 +48,7 @@ Not production-ready yet:
 For MVP hosting, use Cloudflare KV for small server-side records:
 
 - `SETTINGS_KV`: analytics/settings keyed by salted GitHub user id hash.
-- `SESSION_KV`: short-lived session records keyed by an opaque session id.
+- `SESSION_KV`: encrypted short-lived session records keyed by an opaque session id.
 - `OAUTH_STATE_KV`: short-lived OAuth state records keyed by opaque state.
 - Optional `TOKEN_KV`: encrypted GitHub user token material if sessions must survive browser restarts or imports need refresh token support.
 
@@ -99,11 +99,12 @@ Worker production config:
   - `GITHUB_CLIENT_ID`
   - `GITHUB_CLIENT_SECRET`
   - `SETTINGS_HASH_SALT`
+  - `SESSION_ENCRYPTION_KEY`
   - Future token encryption key when persistent token storage is added.
 - Bindings:
   - `SETTINGS_KV`
-  - Future `SESSION_KV`
-  - Future `OAUTH_STATE_KV`
+  - `SESSION_KV`
+  - `OAUTH_STATE_KV`
   - Future `TOKEN_KV` if refresh-token persistence is implemented.
 
 Local config:
@@ -126,8 +127,8 @@ Deferred:
 - Current inline theme bootstrap means either a nonce/hash approach or a narrow inline allowance is needed before enabling strict CSP.
 
 Worker:
-- API responses should keep `Cache-Control: no-store`.
-- Add common security headers to JSON and redirect responses.
+- API responses keep `Cache-Control: no-store`.
+- JSON, redirect, and preflight responses include common security headers.
 - Keep `Access-Control-Allow-Origin` exact-match only.
 - Keep `Access-Control-Allow-Credentials: true` only for the configured web origin.
 
@@ -168,12 +169,11 @@ Do not point local development at production KV by default.
 
 ## Pre-Launch Security Checklist
 
-- Replace in-memory sessions with persistent short-lived session storage.
-- Replace in-memory OAuth state with persistent short-lived OAuth state storage.
+- Configure production and staging `SESSION_KV` bindings.
+- Configure production and staging `OAUTH_STATE_KV` bindings.
 - Decide whether MVP persists refresh tokens or requires reconnect after session expiration.
 - If token material is persisted, encrypt it before writing to Cloudflare storage.
 - Add account deletion for the minimal server-side record.
-- Add Worker security headers.
 - Finalize production and staging hostnames.
 - Configure GitHub App callback URLs for production and staging.
 - Configure Cloudflare Pages env vars and Worker secrets.

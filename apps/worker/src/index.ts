@@ -8,7 +8,10 @@ interface Env {
   GITHUB_API_VERSION?: string;
   WEB_ORIGIN?: string;
   SETTINGS_HASH_SALT?: string;
+  SESSION_ENCRYPTION_KEY?: string;
   SETTINGS_KV?: KVNamespace;
+  SESSION_KV?: KVNamespace;
+  OAUTH_STATE_KV?: KVNamespace;
 }
 
 interface Session {
@@ -18,6 +21,13 @@ interface Session {
   createdAt: string;
   settings: ApplicationSettings;
   githubUserHash?: string;
+}
+
+interface EncryptedSessionRecord {
+  version: 1;
+  algorithm: "AES-GCM";
+  iv: string;
+  ciphertext: string;
 }
 
 interface GitHubUserIdentity {
@@ -31,12 +41,17 @@ const oauthStates = new Map<string, number>();
 
 const defaultApiVersion = "2022-11-28";
 const defaultWebOrigin = "http://127.0.0.1:4321";
+const oauthStateTtlSeconds = 10 * 60;
+const sessionTtlSeconds = 8 * 60 * 60;
 
-function route(request: Request, env: Env) {
+async function route(request: Request, env: Env) {
   const url = new URL(request.url);
 
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(request, env) });
+    return new Response(null, {
+      status: 204,
+      headers: responseHeaders(request, env),
+    });
   }
 
   if (url.pathname === "/health" || url.pathname === "/api/health") {
@@ -56,12 +71,13 @@ function route(request: Request, env: Env) {
       github_api_version: githubApiVersion(env),
       web_origin: webOrigin(env),
       stores_repository_data: false,
-      session_store: "in-memory-dev",
+      session_store: sessionStore(env),
+      oauth_state_store: oauthStateStore(env),
     });
   }
 
   if (url.pathname === "/auth/github") {
-    return startGitHubAuth(request, env);
+    return await startGitHubAuth(request, env);
   }
 
   if (url.pathname === "/auth/github/callback") {
@@ -91,7 +107,7 @@ function route(request: Request, env: Env) {
   return json(request, env, { error: "Not found" }, { status: 404 });
 }
 
-function startGitHubAuth(request: Request, env: Env) {
+async function startGitHubAuth(request: Request, env: Env) {
   if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     return json(
       request,
@@ -102,16 +118,19 @@ function startGitHubAuth(request: Request, env: Env) {
   }
 
   const state = createId();
-  oauthStates.set(state, Date.now());
+  await saveOAuthState(state, env);
 
   const authUrl = new URL("https://github.com/login/oauth/authorize");
   authUrl.searchParams.set("client_id", env.GITHUB_CLIENT_ID);
   authUrl.searchParams.set("redirect_uri", redirectUri(request, env));
   authUrl.searchParams.set("state", state);
 
-  return redirect(authUrl.toString(), [
-    cookie(request, "forage_oauth_state", state, { maxAge: 600 }),
-  ]);
+  return redirect(
+    authUrl.toString(),
+    [cookie(request, "forage_oauth_state", state, { maxAge: oauthStateTtlSeconds })],
+    request,
+    env,
+  );
 }
 
 async function finishGitHubAuth(request: Request, env: Env) {
@@ -120,27 +139,37 @@ async function finishGitHubAuth(request: Request, env: Env) {
   const code = url.searchParams.get("code");
   const cookies = parseCookies(request.headers.get("cookie"));
 
-  if (!state || !code || cookies.forage_oauth_state !== state || !oauthStates.has(state)) {
+  const validOAuthState =
+    state && code && cookies.forage_oauth_state === state && (await consumeOAuthState(state, env));
+
+  if (!validOAuthState) {
     return json(request, env, { error: "Invalid GitHub auth state" }, { status: 400 });
   }
-
-  oauthStates.delete(state);
 
   try {
     const tokenPayload = await exchangeCodeForToken(request, env, code);
     const sessionId = createId();
-    sessions.set(sessionId, {
-      accessToken: tokenPayload.access_token,
-      tokenType: tokenPayload.token_type,
-      scope: tokenPayload.scope,
-      createdAt: new Date().toISOString(),
-      settings: defaultSettings(),
-    });
+    await saveSession(
+      sessionId,
+      {
+        accessToken: tokenPayload.access_token,
+        tokenType: tokenPayload.token_type,
+        scope: tokenPayload.scope,
+        createdAt: new Date().toISOString(),
+        settings: defaultSettings(),
+      },
+      env,
+    );
 
-    return redirect(webOrigin(env), [
-      cookie(request, "forage_session", sessionId, { maxAge: 60 * 60 * 8 }),
-      cookie(request, "forage_oauth_state", "", { maxAge: 0 }),
-    ]);
+    return redirect(
+      webOrigin(env),
+      [
+        cookie(request, "forage_session", sessionId, { maxAge: sessionTtlSeconds }),
+        cookie(request, "forage_oauth_state", "", { maxAge: 0 }),
+      ],
+      request,
+      env,
+    );
   } catch (error) {
     return json(
       request,
@@ -152,7 +181,7 @@ async function finishGitHubAuth(request: Request, env: Env) {
 }
 
 async function getSessionResponse(request: Request, env: Env) {
-  const session = getSession(request);
+  const session = await getSession(request, env);
   if (!session) {
     return json(request, env, { authenticated: false });
   }
@@ -184,10 +213,10 @@ async function getSessionResponse(request: Request, env: Env) {
   });
 }
 
-function logout(request: Request, env: Env) {
+async function logout(request: Request, env: Env) {
   const cookies = parseCookies(request.headers.get("cookie"));
   if (cookies.forage_session) {
-    sessions.delete(cookies.forage_session);
+    await deleteSession(cookies.forage_session, env);
   }
 
   return json(
@@ -203,7 +232,7 @@ function logout(request: Request, env: Env) {
 }
 
 async function getSettings(request: Request, env: Env) {
-  const session = getSession(request);
+  const session = await getSession(request, env);
   if (!session) {
     return json(request, env, { error: "Not authenticated" }, { status: 401 });
   }
@@ -217,7 +246,7 @@ async function getSettings(request: Request, env: Env) {
 }
 
 async function updateSettings(request: Request, env: Env) {
-  const session = getSession(request);
+  const session = await getSession(request, env);
   if (!session) {
     return json(request, env, { error: "Not authenticated" }, { status: 401 });
   }
@@ -241,7 +270,7 @@ async function updateSettings(request: Request, env: Env) {
 }
 
 async function fetchStarred(request: Request, env: Env) {
-  const session = getSession(request);
+  const session = await getSession(request, env);
   if (!session) {
     return json(request, env, { error: "Not authenticated" }, { status: 401 });
   }
@@ -319,11 +348,11 @@ async function exchangeCodeForToken(request: Request, env: Env, code: string) {
   };
 }
 
-function getSession(request: Request) {
+async function getSession(request: Request, env: Env) {
   const cookies = parseCookies(request.headers.get("cookie"));
   const sessionId = cookies.forage_session;
   if (!sessionId) return null;
-  return sessions.get(sessionId) ?? null;
+  return await loadSession(sessionId, env);
 }
 
 function githubHeaders(accessToken: string, apiVersion: string) {
@@ -340,17 +369,30 @@ function json(request: Request, env: Env, payload: unknown, init: ResponseInit =
     ...init,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...corsHeaders(request, env),
+      ...responseHeaders(request, env),
       ...init.headers,
     },
   });
 }
 
-function redirect(location: string, cookies: string[] = []) {
-  const headers = new Headers({ Location: location });
+function redirect(location: string, cookies: string[] = [], request: Request, env: Env) {
+  const headers = new Headers({
+    Location: location,
+    ...responseHeaders(request, env),
+  });
   for (const value of cookies) headers.append("Set-Cookie", value);
   return new Response(null, { status: 302, headers });
+}
+
+function responseHeaders(request: Request, env: Env) {
+  return {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    ...corsHeaders(request, env),
+  };
 }
 
 function corsHeaders(request: Request, env: Env) {
@@ -389,6 +431,7 @@ async function loadSettings(session: Session, env: Env): Promise<ApplicationSett
 
 async function saveSettings(session: Session, env: Env, settings: ApplicationSettings) {
   session.settings = settings;
+  await persistSessionIfNeeded(session, env);
   if (!env.SETTINGS_KV) return;
 
   const key = await settingsKey(session, env);
@@ -403,6 +446,7 @@ async function settingsKey(session: Session, env: Env) {
   if (!identity.ok || identity.user.id === null) return null;
 
   session.githubUserHash = await hashGitHubUserId(identity.user.id, env);
+  await persistSessionIfNeeded(session, env);
   return `settings:${session.githubUserHash}`;
 }
 
@@ -415,6 +459,143 @@ async function hashGitHubUserId(userId: number, env: Env) {
 
 function settingsStore(env: Env) {
   return env.SETTINGS_KV ? "cloudflare-kv" : "in-memory-dev";
+}
+
+function sessionStore(env: Env) {
+  return env.SESSION_KV ? "cloudflare-kv-encrypted" : "in-memory-dev";
+}
+
+function oauthStateStore(env: Env) {
+  return env.OAUTH_STATE_KV ? "cloudflare-kv" : "in-memory-dev";
+}
+
+async function saveOAuthState(state: string, env: Env) {
+  const createdAt = Date.now();
+  if (!env.OAUTH_STATE_KV) {
+    oauthStates.set(state, createdAt);
+    return;
+  }
+
+  await env.OAUTH_STATE_KV.put(oauthStateKey(state), JSON.stringify({ createdAt }), {
+    expirationTtl: oauthStateTtlSeconds,
+  });
+}
+
+async function consumeOAuthState(state: string, env: Env) {
+  if (!env.OAUTH_STATE_KV) {
+    const createdAt = oauthStates.get(state);
+    oauthStates.delete(state);
+    return Boolean(createdAt && Date.now() - createdAt <= oauthStateTtlSeconds * 1000);
+  }
+
+  const key = oauthStateKey(state);
+  const payload = await env.OAUTH_STATE_KV.get<{ createdAt?: number }>(key, "json");
+  await env.OAUTH_STATE_KV.delete(key);
+  return Boolean(
+    payload?.createdAt && Date.now() - payload.createdAt <= oauthStateTtlSeconds * 1000,
+  );
+}
+
+async function saveSession(sessionId: string, session: Session, env: Env) {
+  sessions.set(sessionId, session);
+  if (!env.SESSION_KV) return;
+
+  const record = await encryptSession(session, env);
+  await env.SESSION_KV.put(sessionKey(sessionId), JSON.stringify(record), {
+    expirationTtl: sessionTtlSeconds,
+  });
+}
+
+async function loadSession(sessionId: string, env: Env) {
+  const memorySession = sessions.get(sessionId);
+  if (memorySession) return memorySession;
+  if (!env.SESSION_KV) return null;
+
+  const record = await env.SESSION_KV.get<EncryptedSessionRecord>(sessionKey(sessionId), "json");
+  if (!record) return null;
+
+  try {
+    const session = await decryptSession(record, env);
+    sessions.set(sessionId, session);
+    return session;
+  } catch {
+    await env.SESSION_KV.delete(sessionKey(sessionId));
+    return null;
+  }
+}
+
+async function deleteSession(sessionId: string, env: Env) {
+  sessions.delete(sessionId);
+  if (env.SESSION_KV) await env.SESSION_KV.delete(sessionKey(sessionId));
+}
+
+async function persistSessionIfNeeded(session: Session, env: Env) {
+  if (!env.SESSION_KV) return;
+
+  for (const [sessionId, candidate] of sessions.entries()) {
+    if (candidate === session) {
+      await saveSession(sessionId, session, env);
+      return;
+    }
+  }
+}
+
+async function encryptSession(session: Session, env: Env): Promise<EncryptedSessionRecord> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(session));
+  const ciphertext = await crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv,
+    },
+    await sessionEncryptionKey(env),
+    encoded,
+  );
+
+  return {
+    version: 1,
+    algorithm: "AES-GCM",
+    iv: base64UrlEncode(iv),
+    ciphertext: base64UrlEncode(new Uint8Array(ciphertext)),
+  };
+}
+
+async function decryptSession(record: EncryptedSessionRecord, env: Env): Promise<Session> {
+  if (record.version !== 1 || record.algorithm !== "AES-GCM") {
+    throw new Error("Unsupported session record");
+  }
+
+  const plaintext = await crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: base64UrlDecode(record.iv),
+    },
+    await sessionEncryptionKey(env),
+    base64UrlDecode(record.ciphertext),
+  );
+
+  return JSON.parse(new TextDecoder().decode(plaintext)) as Session;
+}
+
+async function sessionEncryptionKey(env: Env) {
+  const secret = env.SESSION_ENCRYPTION_KEY || env.GITHUB_CLIENT_SECRET;
+  if (!secret) {
+    throw new Error("Missing SESSION_ENCRYPTION_KEY or GITHUB_CLIENT_SECRET");
+  }
+
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return await crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+function sessionKey(sessionId: string) {
+  return `session:${sessionId}`;
+}
+
+function oauthStateKey(state: string) {
+  return `oauth-state:${state}`;
 }
 
 async function getGitHubUserIdentity(session: Session, env: Env) {
@@ -481,10 +662,20 @@ function parseCookies(header: string | null) {
 function createId() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
+}
+
+function base64UrlEncode(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/, "");
+}
+
+function base64UrlDecode(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
 }
 
 function redirectUri(request: Request, env: Env) {

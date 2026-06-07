@@ -45,7 +45,7 @@ Definition of ready for broader MVP work:
 
 Definition of ready for hosted testing:
 - Cloudflare Pages and Worker hostnames are finalized.
-- Worker sessions and OAuth state are moved out of memory.
+- Worker `SESSION_KV` and `OAUTH_STATE_KV` namespaces are created and bound.
 - GitHub token expiration/refresh behavior is decided.
 - Server-side settings, sessions, OAuth state, and token records have deletion behavior.
 - Production secrets and KV bindings are configured outside git.

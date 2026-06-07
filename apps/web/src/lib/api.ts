@@ -15,6 +15,7 @@ export interface WorkerConfig {
   web_origin: string;
   stores_repository_data: boolean;
   session_store: string;
+  oauth_state_store: string;
 }
 
 export interface SessionResponse {
