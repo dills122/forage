@@ -75,6 +75,15 @@ http://127.0.0.1:4321
 
 Repository data imported through the real app is stored in browser IndexedDB, not in the Worker.
 
+## Hosted Setup
+
+Hosted testing uses Cloudflare Pages for `apps/web`, a Cloudflare Worker for `apps/worker`, a Durable Object for auth/session coordination, and KV only for small settings records.
+
+Manual GitHub and Cloudflare UI setup is tracked in:
+
+- [Hosting UI Setup](./docs/21-hosting-ui-setup.md)
+- [Hosting And Security Plan](./docs/20-hosting-and-security.md)
+
 ## AI Central Context
 
 This repo uses AI Central steering and local Codex skill links.

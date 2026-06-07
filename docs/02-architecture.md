@@ -5,11 +5,13 @@ Frontend:
 - Astro
 - Astro Islands
 - TypeScript
-- Tailwind
+- Svelte
+- App CSS
 - PWA Support
 
 Backend:
 - Cloudflare Workers
+- Cloudflare Durable Objects
 - Cloudflare KV
 - Cloudflare Pages
 
@@ -33,7 +35,8 @@ Fallback:
 Hosting direction:
 - Cloudflare Pages hosts the static Astro web app.
 - Cloudflare Worker hosts the GitHub auth/session/settings/API boundary.
-- Cloudflare KV stores only small server-side auth/session/settings records.
+- Cloudflare Durable Objects coordinate OAuth state, sessions, user session indexes, and throttles.
+- Cloudflare KV stores only small settings/preference records.
 - D1 is deferred unless server-side settings/account deletion requirements become relational.
 - See [Hosting And Security Plan](./20-hosting-and-security.md).
 
