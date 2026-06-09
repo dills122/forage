@@ -8,6 +8,13 @@ build/
 .wrangler/
 .astro/
 
+# OpenTofu / Terraform local state and provider installs.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
 # Codex local integration links. These point at user-specific AI Central
 # checkouts and are recreated with `npm run codex:links`.
 .codex/skills/

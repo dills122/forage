@@ -41,12 +41,14 @@ Already implemented:
 - Pages uses Astro CSP support for script/style hashes and Worker `connect-src`.
 - Pages static headers include HSTS, frame denial, referrer policy, nosniff, and a restrictive permissions policy.
 - Repository data, analysis results, reports, and exports stay out of Cloudflare.
+- Initial OpenTofu scaffold for Cloudflare Pages, KV, domains, and environment output wiring.
 
 Not production-ready yet:
 - Production `SETTINGS_KV` namespace IDs are not configured in `wrangler.toml`.
 - Pages preview deployment CORS behavior is not finalized.
 - Production Cloudflare resource names and custom domains are not finalized.
 - Production GitHub App callback URLs are still placeholders.
+- OpenTofu has not been applied against the real Cloudflare account yet.
 
 ## Production Storage Decision
 
@@ -87,6 +89,11 @@ Token posture:
 - Revisit encrypted refresh-token rotation only if background refresh becomes a product requirement.
 
 ## Cloudflare Configuration
+
+Infrastructure:
+- OpenTofu configuration lives in `infra/opentofu`.
+- Keep secret values out of OpenTofu state.
+- Use OpenTofu outputs for `SETTINGS_KV`, Pages env vars, Worker env vars, and GitHub App URLs.
 
 Pages production config:
 - Build command: `pnpm --filter @forage/web build`
