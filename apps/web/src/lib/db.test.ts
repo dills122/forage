@@ -191,6 +191,7 @@ function createImportEvent(id: string, startedAt: string): ImportEvent {
     pages: 1,
     repositories: 1,
     rate_limits: [],
+    retry_after_seconds: null,
     errors: [],
   };
 }

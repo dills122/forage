@@ -33,6 +33,12 @@ Import state contract:
 - `packages/core` owns the pure import run state helpers.
 - Current terminal states are `completed`, `failed`, `cancelled`, and `rate_limited`.
 - The web app uses this contract for visible import progress, cancellation, failure, and rate-limit terminal states.
+- Rate-limited runs preserve retry timing when the Worker or GitHub response provides `Retry-After`, `retry_after_seconds`, or GitHub rate-limit reset metadata.
+
+Retry model:
+- The web import worker may retry narrow transient failures: request timeout, network fetch failure, and 5xx worker/GitHub proxy responses.
+- Authentication failures, validation failures, user cancellation, and rate-limit responses are not retried automatically.
+- Retry delays are bounded by the web import retry policy so background import work does not quietly wait for long windows.
 
 Browser Web Worker responsibilities:
 - Pagination orchestration

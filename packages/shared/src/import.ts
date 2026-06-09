@@ -16,5 +16,6 @@ export interface ImportEvent {
   pages: number;
   repositories: number;
   rate_limits: GitHubRateLimitSnapshot[];
+  retry_after_seconds: number | null;
   errors: string[];
 }

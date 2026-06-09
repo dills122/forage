@@ -7,6 +7,7 @@ export interface ImportRunState {
   pages: number;
   repositories: number;
   rate_limits: GitHubRateLimitSnapshot[];
+  retry_after_seconds: number | null;
   errors: string[];
   current_page: number | null;
   can_cancel: boolean;
@@ -26,6 +27,7 @@ export function createImportRunState(startedAt = new Date().toISOString()): Impo
     pages: 0,
     repositories: 0,
     rate_limits: [],
+    retry_after_seconds: null,
     errors: [],
     current_page: 1,
     can_cancel: true,
@@ -72,12 +74,14 @@ export function rateLimitImport(
   state: ImportRunState,
   error: string,
   rateLimit: GitHubRateLimitSnapshot | null,
+  retryAfterSeconds: number | null = null,
   completedAt = new Date().toISOString(),
 ): ImportRunState {
   assertRunning(state);
   return {
     ...terminalState(state, "rate_limited", completedAt, error),
     rate_limits: rateLimit ? [...state.rate_limits, rateLimit] : state.rate_limits,
+    retry_after_seconds: retryAfterSeconds,
   };
 }
 
@@ -90,6 +94,7 @@ export function importRunStateToEvent(id: string, state: ImportRunState): Import
     pages: state.pages,
     repositories: state.repositories,
     rate_limits: state.rate_limits,
+    retry_after_seconds: state.retry_after_seconds,
     errors: state.errors,
   };
 }
