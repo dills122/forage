@@ -23,6 +23,8 @@
     "format": "npm run format:astro && biome format --write .",
     "format:astro": "prettier --write \"**/*.astro\"",
     "format:astro:check": "prettier --check \"**/*.astro\"",
+    "infra:fmt": "tofu fmt -recursive infra/opentofu",
+    "infra:fmt:check": "tofu fmt -check -recursive infra/opentofu",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "lint-staged": "lint-staged",

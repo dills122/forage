@@ -74,6 +74,7 @@ Custom domains:
 Important:
 - `PUBLIC_WORKER_ORIGIN` is compiled into the Astro build and into CSP `connect-src`.
 - If the Worker API hostname changes, update the Pages environment variable and redeploy Pages.
+- If using OpenTofu, confirm the Pages project, build variables, and custom domains match `infra/opentofu` outputs.
 
 ## Cloudflare Worker UI
 
@@ -125,6 +126,7 @@ KV namespace:
 - Create production namespace: `forage-production-settings`
 - Create staging namespace: `forage-staging-settings`
 - Bind each namespace to the Worker as `SETTINGS_KV`
+- If using OpenTofu, the namespace ids come from `tofu output settings_kv_namespaces`.
 
 Do not create or bind storage for repository lists, analysis results, reports, or exports.
 

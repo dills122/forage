@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars or pass with -var-file. Do not commit real .tfvars files.
+
+cloudflare_account_id = "replace-with-account-id"
+cloudflare_zone_id    = "replace-with-zone-id"
+cloudflare_zone_name  = "example.com"
+
+pages_project_name  = "forage-web"
+worker_service_name = "forage-worker"
+
+# Worker custom domains require the target Worker services to exist first.
+# Leave false for the first apply if Wrangler has not deployed the Worker yet.
+manage_worker_custom_domains = false
+
+environments = {
+  staging = {
+    web_hostname        = "staging.forage.example.com"
+    api_hostname        = "api-staging.forage.example.com"
+    worker_service_name = "forage-worker-staging"
+  }
+
+  production = {
+    web_hostname        = "forage.example.com"
+    api_hostname        = "api.forage.example.com"
+    worker_service_name = "forage-worker"
+  }
+}
