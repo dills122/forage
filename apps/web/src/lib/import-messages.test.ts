@@ -44,6 +44,9 @@ describe("import worker messages", () => {
     expect(getImportTerminalText({ ...importedPage, status: "cancelled" })).toBe(
       "Import cancelled after 1 page(s) and 100 repositories.",
     );
+    expect(
+      getImportTerminalText({ ...importedPage, status: "rate_limited", retry_after_seconds: 120 }),
+    ).toBe("Import paused by GitHub rate limits after 1 page(s). Try again in about 2 minute(s).");
     expect(getImportTerminalText({ ...importedPage, status: "rate_limited" })).toBe(
       "Import paused by GitHub rate limits after 1 page(s). Try again later.",
     );

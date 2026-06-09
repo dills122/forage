@@ -53,6 +53,7 @@ export class WorkerApiError extends Error {
     message: string,
     readonly status: number,
     readonly rateLimit: GitHubRateLimitSnapshot | null,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "WorkerApiError";
@@ -154,10 +155,28 @@ export class WorkerApi {
         typeof payload === "object" && payload && "rate_limit" in payload
           ? (payload.rate_limit as GitHubRateLimitSnapshot)
           : null;
-      throw new WorkerApiError(message, response.status, rateLimit);
+      throw new WorkerApiError(
+        message,
+        response.status,
+        rateLimit,
+        retryAfterSecondsFromResponse(response, payload),
+      );
     }
     return payload as T;
   }
+}
+
+function retryAfterSecondsFromResponse(response: Response, payload: unknown) {
+  const payloadRetryAfter =
+    typeof payload === "object" && payload && "retry_after_seconds" in payload
+      ? Number(payload.retry_after_seconds)
+      : NaN;
+  if (Number.isFinite(payloadRetryAfter) && payloadRetryAfter >= 0) return payloadRetryAfter;
+
+  const headerRetryAfter = Number(response.headers.get("retry-after"));
+  if (Number.isFinite(headerRetryAfter) && headerRetryAfter >= 0) return headerRetryAfter;
+
+  return null;
 }
 
 export function createImportEvent(): ImportEvent {
@@ -169,6 +188,7 @@ export function createImportEvent(): ImportEvent {
     pages: 0,
     repositories: 0,
     rate_limits: [],
+    retry_after_seconds: null,
     errors: [],
   };
 }

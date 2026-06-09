@@ -8,13 +8,14 @@ import {
   rateLimitImport,
   recordImportPage,
 } from "@forage/core";
-import { WorkerApi, WorkerApiError } from "./api";
+import { type StarredPageResponse, WorkerApi, WorkerApiError } from "./api";
 import {
   reconcileImportedRepositories,
   saveAnalysisResults,
   saveLocalLibraryProfile,
   saveRepositories,
 } from "./db";
+import { getRateLimitRetryAfterSeconds, runImportRequestWithRetry } from "./import-retry";
 import type { ImportWorkerPhase, StartRepositoryImportInput } from "./import-worker";
 
 export interface ImportPipelineInput extends StartRepositoryImportInput {
@@ -47,18 +48,22 @@ export async function runRepositoryImportPipeline(
     let page: number | null = 1;
 
     while (page) {
-      onProgress({ importRun, phase: "importing", page, observedFieldNames });
-      const result = await api.getStarredPage(page, 100, input.signal);
+      const currentPage: number = page;
+      onProgress({ importRun, phase: "importing", page: currentPage, observedFieldNames });
+      const result = await runImportRequestWithRetry<StarredPageResponse>(
+        () => api.getStarredPage(currentPage, 100, input.signal),
+        { signal: input.signal },
+      );
 
       await saveRepositories(result.repositories);
       for (const repository of result.repositories) {
         importedRepositoryIds.add(repository.github_id);
       }
-      onProgress({ importRun, phase: "analyzing", page, observedFieldNames });
+      onProgress({ importRun, phase: "analyzing", page: currentPage, observedFieldNames });
       await saveAnalysisResults(analyzeRepositories(result.repositories));
 
       importRun = recordImportPage(importRun, {
-        page,
+        page: currentPage,
         repositories: result.repositories.length,
         rate_limit: result.rate_limit,
       });
@@ -82,7 +87,12 @@ export async function runRepositoryImportPipeline(
       if (input.isCancelRequested() || isAbortError(error)) {
         importRun = cancelImport(importRun);
       } else if (isRateLimitError(error)) {
-        importRun = rateLimitImport(importRun, errorMessage, error.rateLimit);
+        importRun = rateLimitImport(
+          importRun,
+          errorMessage,
+          error.rateLimit,
+          getRateLimitRetryAfterSeconds(error),
+        );
       } else {
         importRun = failImport(importRun, errorMessage);
       }

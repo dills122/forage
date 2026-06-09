@@ -42,6 +42,7 @@ test("records page progress and converts to import event", () => {
     pages: 1,
     repositories: 100,
     rate_limits: [rateLimit],
+    retry_after_seconds: null,
     errors: [],
   });
 });
@@ -57,6 +58,7 @@ test("captures failed, cancelled, and rate-limited terminal states", () => {
     createImportRunState(),
     "Rate limit exceeded",
     rateLimit,
+    60,
     "2026-06-05T00:00:00.000Z",
   );
 
@@ -66,6 +68,7 @@ test("captures failed, cancelled, and rate-limited terminal states", () => {
   assert.equal(rateLimited.status, "rate_limited");
   assert.deepEqual(rateLimited.errors, ["Rate limit exceeded"]);
   assert.deepEqual(rateLimited.rate_limits, [rateLimit]);
+  assert.equal(rateLimited.retry_after_seconds, 60);
 });
 
 test("rejects updates after terminal states", () => {
