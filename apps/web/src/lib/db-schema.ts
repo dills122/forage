@@ -1,6 +1,16 @@
 import type { ForageRepository, ImportEvent, RepositoryAnalysis } from "@forage/shared";
 import Dexie, { type EntityTable } from "dexie";
 
+export const forageDatabaseName = "forage";
+export const forageDatabaseVersion = 3;
+
+export const forageDatabaseStores = {
+  repositories: "github_id, &full_name, primary_language, starred_at",
+  importEvents: "id",
+  metadata: "id",
+  analysisResults: "repository_id, &repository_full_name, analysis_version",
+} as const;
+
 export const localLibraryProfileKey = "local-library-profile";
 export const localOperationLockKey = "local-operation-lock";
 
@@ -25,18 +35,17 @@ export interface LocalOperationLock {
 
 type MetadataRecord = LocalLibraryProfile | LocalOperationLock;
 
-interface ForageDatabase extends Dexie {
+export interface ForageDatabase extends Dexie {
   repositories: EntityTable<ForageRepository, "github_id">;
   importEvents: EntityTable<ImportEvent, "id">;
   metadata: EntityTable<MetadataRecord, "id">;
   analysisResults: EntityTable<RepositoryAnalysis, "repository_id">;
 }
 
-export const db = new Dexie("forage") as ForageDatabase;
+export function createForageDatabase(name = forageDatabaseName): ForageDatabase {
+  const database = new Dexie(name) as ForageDatabase;
+  database.version(forageDatabaseVersion).stores(forageDatabaseStores);
+  return database;
+}
 
-db.version(3).stores({
-  repositories: "github_id, &full_name, primary_language, starred_at",
-  importEvents: "id",
-  metadata: "id",
-  analysisResults: "repository_id, &repository_full_name, analysis_version",
-});
+export const db = createForageDatabase();
