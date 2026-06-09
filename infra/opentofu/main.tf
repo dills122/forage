@@ -120,9 +120,10 @@ resource "cloudflare_workers_custom_domain" "api" {
     if var.manage_worker_custom_domains && environment.manage_worker_custom_domain
   }
 
-  account_id = var.cloudflare_account_id
-  hostname   = each.value.api_hostname
-  service    = each.value.worker_service_name
-  zone_id    = var.cloudflare_zone_id
-  zone_name  = var.cloudflare_zone_name
+  account_id  = var.cloudflare_account_id
+  environment = each.key
+  hostname    = each.value.api_hostname
+  service     = each.value.worker_service_name
+  zone_id     = var.cloudflare_zone_id
+  zone_name   = var.cloudflare_zone_name
 }
