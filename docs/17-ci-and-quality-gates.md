@@ -20,6 +20,7 @@ Current `npm run check` coverage:
 - Analysis review fixture check
 - Documentation checks
 - Workspace structure checks
+- OpenTofu formatting for `infra/opentofu`
 - Package tests with coverage
 - Worker API contract tests
 - Biome lint and format checks for JavaScript, TypeScript, CSS, and JSON
@@ -74,5 +75,5 @@ Future gates:
 - Raise package source coverage from 75% to 90% after the MVP worker/import state boundaries stabilize.
 - Add package-level unit tests for IndexedDB migrations.
 - Add browser smoke tests once the app has stable flows beyond the current import slice.
-- Add deployment preview checks when Cloudflare environment bindings are defined.
-- Add a scheduled or manual CI job for `pnpm smoke:hosted` once Cloudflare domains are configured.
+- Expand deployment preview checks after Cloudflare environment bindings are proven.
+- Enable hosted smoke checks by default once Cloudflare domains are configured.

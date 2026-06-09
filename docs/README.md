@@ -30,6 +30,7 @@ This directory contains the planning and technical decision material for Forage.
 - [Hosting And Security Plan](./20-hosting-and-security.md)
 - [Hosting UI Setup](./21-hosting-ui-setup.md)
 - [Infrastructure As Code](./22-infrastructure-as-code.md)
+- [Deployment Automation](./23-deployment-automation.md)
 
 ## Architecture Decisions
 

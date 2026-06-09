@@ -1,0 +1,148 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target deployment environment"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      deploy_worker:
+        description: "Deploy the Cloudflare Worker"
+        required: true
+        type: boolean
+        default: true
+      deploy_pages:
+        description: "Deploy the Cloudflare Pages app"
+        required: true
+        type: boolean
+        default: true
+      run_hosted_smoke:
+        description: "Run hosted smoke checks after deploy"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    env:
+      CI: true
+      WRANGLER_SEND_METRICS: false
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME || 'forage-web' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.23.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.11.5
+          tofu_wrapper: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve deployment environment
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment_name="${{ inputs.environment }}"
+          case "$environment_name" in
+            production)
+              web_origin="${{ vars.FORAGE_PRODUCTION_WEB_ORIGIN }}"
+              worker_origin="${{ vars.FORAGE_PRODUCTION_WORKER_ORIGIN }}"
+              pages_branch="${{ vars.FORAGE_PRODUCTION_PAGES_BRANCH }}"
+              default_pages_branch="main"
+              ;;
+            staging)
+              web_origin="${{ vars.FORAGE_STAGING_WEB_ORIGIN }}"
+              worker_origin="${{ vars.FORAGE_STAGING_WORKER_ORIGIN }}"
+              pages_branch="${{ vars.FORAGE_STAGING_PAGES_BRANCH }}"
+              default_pages_branch="staging"
+              ;;
+            *)
+              echo "::error::Unsupported deployment environment: $environment_name"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$worker_origin" ]; then
+            echo "::error::Set FORAGE_${environment_name^^}_WORKER_ORIGIN as a GitHub environment variable."
+            exit 1
+          fi
+
+          if [ "${{ inputs.run_hosted_smoke }}" = "true" ] && [ -z "$web_origin" ]; then
+            echo "::error::Set FORAGE_${environment_name^^}_WEB_ORIGIN as a GitHub environment variable before hosted smoke checks."
+            exit 1
+          fi
+
+          if [ -z "$pages_branch" ]; then
+            pages_branch="$default_pages_branch"
+          fi
+
+          {
+            echo "environment_name=$environment_name"
+            echo "web_origin=$web_origin"
+            echo "worker_origin=$worker_origin"
+            echo "pages_branch=$pages_branch"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check infra formatting
+        run: npm run infra:fmt:check
+
+      - name: Build Worker
+        run: pnpm --filter @forage/worker build
+
+      - name: Build web app
+        env:
+          PUBLIC_WORKER_ORIGIN: ${{ steps.resolve.outputs.worker_origin }}
+        run: pnpm --filter @forage/web build
+
+      - name: Deploy Worker
+        if: ${{ inputs.deploy_worker }}
+        working-directory: apps/worker
+        run: pnpm exec wrangler deploy --env "${{ steps.resolve.outputs.environment_name }}"
+
+      - name: Deploy Pages
+        if: ${{ inputs.deploy_pages }}
+        working-directory: apps/worker
+        run: |
+          pnpm exec wrangler pages deploy ../../apps/web/dist \
+            --project-name "$CLOUDFLARE_PAGES_PROJECT_NAME" \
+            --branch "${{ steps.resolve.outputs.pages_branch }}"
+
+      - name: Hosted smoke check
+        if: ${{ inputs.run_hosted_smoke }}
+        env:
+          FORAGE_WEB_ORIGIN: ${{ steps.resolve.outputs.web_origin }}
+          FORAGE_WORKER_ORIGIN: ${{ steps.resolve.outputs.worker_origin }}
+        run: pnpm smoke:hosted

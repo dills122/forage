@@ -149,9 +149,19 @@ Required repository settings:
 Recommended repository secrets for deployment CI:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- Any project-specific deploy token required by the chosen deployment workflow
 
 Do not store GitHub App client secrets as public repository variables.
+
+Recommended GitHub environment variables for the manual deploy workflow:
+- `CLOUDFLARE_PAGES_PROJECT_NAME`
+- `FORAGE_STAGING_WEB_ORIGIN`
+- `FORAGE_STAGING_WORKER_ORIGIN`
+- `FORAGE_STAGING_PAGES_BRANCH`
+- `FORAGE_PRODUCTION_WEB_ORIGIN`
+- `FORAGE_PRODUCTION_WORKER_ORIGIN`
+- `FORAGE_PRODUCTION_PAGES_BRANCH`
+
+Use GitHub environments named `staging` and `production`. Production should require manual approval before `.github/workflows/deploy.yml` can deploy to it.
 
 ## Post-Deploy Verification
 

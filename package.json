@@ -7,7 +7,7 @@
   "scripts": {
     "analysis:review": "node --import tsx scripts/analysis/review-export.ts",
     "build": "pnpm --recursive --if-present build",
-    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:analysis && npm run check:docs && npm run check:workspace && npm run test:coverage && npm run check:web-tests && npm run check:worker-tests && npm run lint && npm run format:astro:check && npm run typecheck && npm run build && npm run check:web-smoke",
+    "check": "npm run check:scripts && npm run check:pre-mvp && npm run check:analysis && npm run check:docs && npm run check:workspace && npm run infra:fmt:check && npm run test:coverage && npm run check:web-tests && npm run check:worker-tests && npm run lint && npm run format:astro:check && npm run typecheck && npm run build && npm run check:web-smoke",
     "check:analysis": "pnpm analysis:review scripts/analysis/fixtures/forage-export.sample.json > /dev/null",
     "check:docs": "node scripts/check-docs.mjs",
     "check:reporting": "pnpm --filter @forage/reporting test",

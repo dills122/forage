@@ -57,6 +57,8 @@ Set `manage_worker_custom_domains = false` until the Worker service has been dep
 
 After apply, copy the `settings_kv_namespaces` output into the Worker binding configuration as `SETTINGS_KV` for each environment.
 
+Use [Deployment Automation](./23-deployment-automation.md) for the GitHub Actions workflow, repository secrets, GitHub environment variables, and first deployment order.
+
 ## Sources Checked
 
 - [Cloudflare Terraform overview](https://developers.cloudflare.com/terraform/)
