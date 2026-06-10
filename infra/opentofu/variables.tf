@@ -68,6 +68,121 @@ variable "manage_worker_custom_domains" {
   default     = false
 }
 
+variable "manage_security_controls" {
+  description = "Whether OpenTofu should manage Cloudflare WAF and rate limiting rules for hosted Forage domains."
+  type        = bool
+  default     = false
+}
+
+variable "manage_staging_access" {
+  description = "Whether OpenTofu should manage a Cloudflare Access application for the staging web hostname."
+  type        = bool
+  default     = false
+}
+
+variable "staging_environment_name" {
+  description = "Environment key protected by Cloudflare Access for hosted staging."
+  type        = string
+  default     = "staging"
+}
+
+variable "staging_access_allowed_emails" {
+  description = "Email addresses allowed through the staging Cloudflare Access application. Required when manage_staging_access is true."
+  type        = set(string)
+  default     = []
+}
+
+variable "staging_access_extra_hostnames" {
+  description = "Additional staging hostnames protected by the same Access app, such as a Pages preview branch hostname."
+  type        = set(string)
+  default     = []
+}
+
+variable "staging_access_session_duration" {
+  description = "Cloudflare Access session duration for staging web access."
+  type        = string
+  default     = "8h"
+}
+
+variable "security_allowed_countries" {
+  description = "Country codes treated as primary expected traffic sources for hosted Forage domains."
+  type        = set(string)
+  default     = ["US", "CA"]
+
+  validation {
+    condition     = length(var.security_allowed_countries) > 0 && alltrue([for country in var.security_allowed_countries : can(regex("^[A-Z]{2}$", country))])
+    error_message = "security_allowed_countries must contain one or more uppercase ISO 3166-1 alpha-2 country codes."
+  }
+}
+
+variable "security_geo_challenge_action" {
+  description = "WAF action used for traffic outside security_allowed_countries."
+  type        = string
+  default     = "managed_challenge"
+
+  validation {
+    condition     = contains(["managed_challenge", "js_challenge", "challenge", "block"], var.security_geo_challenge_action)
+    error_message = "security_geo_challenge_action must be one of managed_challenge, js_challenge, challenge, or block."
+  }
+}
+
+variable "security_rate_limit_action" {
+  description = "WAF action used when hosted API or auth rate limits are exceeded."
+  type        = string
+  default     = "managed_challenge"
+
+  validation {
+    condition     = contains(["managed_challenge", "js_challenge", "challenge", "block"], var.security_rate_limit_action)
+    error_message = "security_rate_limit_action must be one of managed_challenge, js_challenge, challenge, or block."
+  }
+}
+
+variable "security_staging_geo_challenge_enabled" {
+  description = "Whether the staging geo challenge WAF rule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "security_production_geo_challenge_enabled" {
+  description = "Whether the production geo challenge WAF rule is enabled."
+  type        = bool
+  default     = true
+}
+
+variable "security_rate_limits_enabled" {
+  description = "Whether API and auth rate limiting rules are enabled."
+  type        = bool
+  default     = true
+}
+
+variable "security_auth_rate_limit" {
+  description = "Rate limit threshold for hosted /auth/* endpoints."
+  type = object({
+    period_seconds             = number
+    requests_per_period        = number
+    mitigation_timeout_seconds = number
+  })
+  default = {
+    period_seconds             = 60
+    requests_per_period        = 20
+    mitigation_timeout_seconds = 120
+  }
+}
+
+variable "security_api_rate_limit" {
+  description = "Rate limit threshold for hosted /api/* endpoints."
+  type = object({
+    period_seconds             = number
+    requests_per_period        = number
+    mitigation_timeout_seconds = number
+  })
+  default = {
+    period_seconds             = 60
+    requests_per_period        = 120
+    mitigation_timeout_seconds = 120
+  }
+}
+
 variable "environments" {
   description = "Hosted environment topology. Keep repository data out of all server-side resources."
   type = map(object({
@@ -107,5 +222,10 @@ variable "environments" {
   validation {
     condition     = contains(keys(var.environments), var.preview_environment_name)
     error_message = "preview_environment_name must match a key in environments."
+  }
+
+  validation {
+    condition     = contains(keys(var.environments), var.staging_environment_name)
+    error_message = "staging_environment_name must match a key in environments."
   }
 }

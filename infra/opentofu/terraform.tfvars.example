@@ -10,6 +10,21 @@ worker_service_name = "forage-worker"
 # Leave false for the first apply if Wrangler has not deployed the Worker yet.
 manage_worker_custom_domains = false
 
+# Hosted traffic protection. Keep disabled until the zone is ready for WAF and Access resources.
+manage_security_controls = false
+manage_staging_access    = false
+
+security_allowed_countries = ["US", "CA"]
+
+staging_access_allowed_emails = [
+  "replace-with-your-email@example.com",
+]
+
+# Optional: protect the Cloudflare Pages branch URL as well as the custom staging hostname.
+staging_access_extra_hostnames = [
+  "staging.forage-web.pages.dev",
+]
+
 environments = {
   staging = {
     web_hostname        = "staging.forage.example.com"
