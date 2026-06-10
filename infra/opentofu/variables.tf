@@ -8,11 +8,6 @@ variable "cloudflare_zone_id" {
   type        = string
 }
 
-variable "cloudflare_zone_name" {
-  description = "Cloudflare zone name for Forage custom domains."
-  type        = string
-}
-
 variable "project_slug" {
   description = "Short stable project slug used in managed Cloudflare resource names."
   type        = string

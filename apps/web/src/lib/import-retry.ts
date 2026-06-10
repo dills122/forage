@@ -1,9 +1,10 @@
 import { WorkerApiError } from "./api";
 
 export const importRetryPolicy = {
-  maxAttempts: 3,
-  baseDelayMs: 750,
+  maxAttempts: 2,
+  baseDelayMs: 500,
   maxDelayMs: 5_000,
+  requestTimeoutMs: 5_000,
   retryableStatuses: new Set([408, 500, 502, 503, 504]),
 };
 
@@ -13,17 +14,20 @@ interface RetryOptions {
 }
 
 export async function runImportRequestWithRetry<T>(
-  request: () => Promise<T>,
+  request: (signal: AbortSignal) => Promise<T>,
   { signal, sleep = sleepWithAbort }: RetryOptions,
 ) {
   for (let attempt = 1; ; attempt += 1) {
     throwIfAborted(signal);
+    const requestSignal = createImportRequestSignal(signal);
 
     try {
-      return await request();
+      return await request(requestSignal.signal);
     } catch (error) {
       if (!shouldRetryImportRequest(error, attempt)) throw error;
       await sleep(getImportRetryDelayMs(error, attempt), signal);
+    } finally {
+      requestSignal.dispose();
     }
   }
 }
@@ -33,6 +37,7 @@ export function shouldRetryImportRequest(error: unknown, attempt: number) {
   if (error instanceof WorkerApiError) {
     return importRetryPolicy.retryableStatuses.has(error.status);
   }
+  if (isImportRequestTimeout(error)) return true;
   return error instanceof TypeError;
 }
 
@@ -65,6 +70,45 @@ function sleepWithAbort(delayMs: number, signal: AbortSignal) {
       { once: true },
     );
   });
+}
+
+function createImportRequestSignal(parentSignal: AbortSignal) {
+  const controller = new AbortController();
+  let disposed = false;
+  const timeout = globalThis.setTimeout(() => {
+    controller.abort(new DOMException("Import page request timed out.", "TimeoutError"));
+  }, importRetryPolicy.requestTimeoutMs);
+  const abortFromParent = () => {
+    controller.abort(new DOMException("Import cancelled.", "AbortError"));
+  };
+
+  if (parentSignal.aborted) {
+    abortFromParent();
+  } else {
+    parentSignal.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  controller.signal.addEventListener(
+    "abort",
+    () => {
+      globalThis.clearTimeout(timeout);
+    },
+    { once: true },
+  );
+
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      globalThis.clearTimeout(timeout);
+      parentSignal.removeEventListener("abort", abortFromParent);
+    },
+  };
+}
+
+function isImportRequestTimeout(error: unknown) {
+  return error instanceof DOMException && error.name === "TimeoutError";
 }
 
 function throwIfAborted(signal: AbortSignal) {

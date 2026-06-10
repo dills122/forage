@@ -36,7 +36,9 @@ export async function operationalHash(value: string, env: Env) {
 }
 
 export function createPkceVerifier() {
-  return createId();
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
 }
 
 export async function createPkceChallenge(verifier: string) {

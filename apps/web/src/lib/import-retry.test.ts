@@ -28,18 +28,31 @@ describe("import retry helpers", () => {
     ).resolves.toBe("ok");
 
     expect(request).toHaveBeenCalledTimes(2);
-    expect(sleep).toHaveBeenCalledWith(750, expect.any(AbortSignal));
+    expect(request).toHaveBeenCalledWith(expect.any(AbortSignal));
+    expect(sleep).toHaveBeenCalledWith(500, expect.any(AbortSignal));
   });
 
   it("does not retry auth, validation, or rate-limit failures", () => {
     expect(shouldRetryImportRequest(new WorkerApiError("auth", 401, null), 1)).toBe(false);
     expect(shouldRetryImportRequest(new WorkerApiError("rate", 429, null, 60), 1)).toBe(false);
-    expect(shouldRetryImportRequest(new WorkerApiError("temporary", 502, null), 3)).toBe(false);
+    expect(shouldRetryImportRequest(new WorkerApiError("temporary", 502, null), 2)).toBe(false);
+  });
+
+  it("retries page request timeouts without treating user cancellation as retryable", () => {
+    expect(
+      shouldRetryImportRequest(
+        new DOMException("Import page request timed out.", "TimeoutError"),
+        1,
+      ),
+    ).toBe(true);
+    expect(shouldRetryImportRequest(new DOMException("Import cancelled.", "AbortError"), 1)).toBe(
+      false,
+    );
   });
 
   it("uses retry-after metadata before exponential fallback", () => {
     expect(getImportRetryDelayMs(new WorkerApiError("temporary", 503, null, 2), 1)).toBe(2_000);
-    expect(getImportRetryDelayMs(new WorkerApiError("temporary", 503, null), 2)).toBe(1_500);
+    expect(getImportRetryDelayMs(new WorkerApiError("temporary", 503, null), 2)).toBe(1_000);
   });
 
   it("estimates rate-limit retry timing from GitHub reset metadata", () => {

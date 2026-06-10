@@ -1,7 +1,7 @@
 # Deployment Automation
 
 Status:
-Manual GitHub Actions workflow scaffolded
+Manual GitHub Actions workflow scaffolded and staging-hosting path proven
 
 Forage deploys through `.github/workflows/deploy.yml`. The workflow is manual-only for now so staging and production deploys remain operator-controlled while the Cloudflare hosting path is still being proven.
 
@@ -76,8 +76,13 @@ Hosted smoke:
 ```sh
 FORAGE_WEB_ORIGIN=https://staging.forage.example.com \
 FORAGE_WORKER_ORIGIN=https://api-staging.forage.example.com \
+FORAGE_SMOKE_EXPECT_PRODUCTION=false \
 pnpm smoke:hosted
 ```
+
+Set `FORAGE_SMOKE_EXPECT_PRODUCTION=false` for staging because staging Worker config intentionally exposes non-secret setup diagnostics. Leave it unset for production so the smoke check verifies that production config hides those diagnostics.
+
+When using Cloudflare Pages custom branch domains, the staging branch name should match the OpenTofu environment key. For example, the `staging` environment maps to `staging.<pages_project_name>.pages.dev` and can be connected to a custom hostname such as `forage-staging.example.com`.
 
 ## Quality Gates
 
