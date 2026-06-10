@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LogOut, Moon, Sun } from "@lucide/svelte";
+  import { Database, LogOut, Moon, Sun } from "@lucide/svelte";
   import { onMount } from "svelte";
   import ImportPanel from "./ImportPanel.svelte";
   import LibraryFilters from "./LibraryFilters.svelte";
@@ -40,6 +40,7 @@
   let activeImportSession: RepositoryImportSession | null = null;
   let themeLabel = "Light";
   let isDarkTheme = false;
+  let initialLoadPending = true;
   let state: AppState = createInitialState(workerOrigin);
 
   $: importRunning = Boolean(activeImportSession) || state.importRun?.status === "running";
@@ -70,7 +71,7 @@
   onMount(() => {
     api = new WorkerApi(state.workerOrigin);
     updateThemeState(applyTheme(getCurrentTheme()));
-    void refreshState();
+    void refreshState({ initial: true });
   });
 
   function patchState(patch: Partial<AppState>) {
@@ -84,8 +85,12 @@
     updateThemeState(toggleStoredTheme());
   }
 
-  async function refreshState() {
-    patchState(await loadAppStateSnapshot(api));
+  async function refreshState({ initial = false } = {}) {
+    try {
+      patchState(await loadAppStateSnapshot(api));
+    } finally {
+      if (initial) initialLoadPending = false;
+    }
   }
 
   async function logout() {
@@ -213,7 +218,12 @@
   }
 </script>
 
-<main class="shell" id="forage-app" data-worker-origin={state.workerOrigin}>
+<main
+  class="shell"
+  id="forage-app"
+  data-worker-origin={state.workerOrigin}
+  aria-busy={initialLoadPending}
+>
   <header class="topbar">
     <div>
       <p class="eyebrow">Forage</p>
@@ -239,9 +249,14 @@
         <span id="theme-toggle-label">{themeLabel}</span>
       </button>
       <span id="session-badge" class:success={state.authenticated} class="status-badge">
-        {state.authenticated ? "Authenticated" : state.sessionStatus}
+        {initialLoadPending ? "Loading" : state.authenticated ? "Authenticated" : state.sessionStatus}
       </span>
-      {#if !state.authenticated}
+      {#if initialLoadPending}
+        <button class="button secondary loading-action" type="button" disabled>
+          <span class="loading-spinner compact" aria-hidden="true"></span>
+          Loading
+        </button>
+      {:else if !state.authenticated}
         <a id="connect-link" href={api?.connectUrl() ?? `${state.workerOrigin}/auth/github`} class="button">
           Connect GitHub
         </a>
@@ -254,6 +269,16 @@
     </div>
   </header>
 
+  {#if initialLoadPending}
+    <section class="loading-panel" aria-live="polite">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <div>
+        <strong>Loading your browser library</strong>
+        <span>Checking GitHub session, local data, settings, and saved analysis.</span>
+      </div>
+    </section>
+  {/if}
+
   <MetricGrid
     repositoryCount={state.repositoryCount}
     topLanguage={state.topLanguage}
@@ -262,12 +287,25 @@
     authenticated={state.authenticated}
   />
 
-  {#if state.repositoryCount > 0}
+  {#if state.repositoryCount > 0 && state.localLibraryConflict}
     <section id="local-library-notice" class="notice" class:warning={state.localLibraryConflict}>
       <strong id="local-library-notice-title">
         {getLocalLibraryNoticeTitle(state.localLibraryConflict, state.authenticated)}
       </strong>
       <span id="local-library-notice-body">
+        {getLocalLibraryNoticeBody({
+          authenticated: state.authenticated,
+          localLibraryConflict: state.localLibraryConflict,
+          localLibraryOwner: state.localLibraryOwner,
+          sessionLogin: state.sessionUser?.login ?? null,
+        })}
+      </span>
+    </section>
+  {:else if state.repositoryCount > 0}
+    <section id="local-library-notice" class="local-library-note" aria-label="Local library status">
+      <Database size={15} aria-hidden="true" />
+      <strong>Local data</strong>
+      <span>
         {getLocalLibraryNoticeBody({
           authenticated: state.authenticated,
           localLibraryConflict: state.localLibraryConflict,
