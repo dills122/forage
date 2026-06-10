@@ -44,6 +44,18 @@ variable "node_version" {
   default     = "22"
 }
 
+variable "pages_compatibility_date" {
+  description = "Cloudflare Pages compatibility date preserved in preview and production deployment configs."
+  type        = string
+  default     = "2026-06-10"
+}
+
+variable "pages_compatibility_flags" {
+  description = "Cloudflare Pages compatibility flags preserved in preview and production deployment configs."
+  type        = list(string)
+  default     = []
+}
+
 variable "github_api_version" {
   description = "GitHub REST API version passed to the Worker."
   type        = string
