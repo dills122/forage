@@ -147,7 +147,7 @@ OpenTofu can manage:
 - Staging web Access application.
 - Staging tester allow policy.
 - Zone WAF geo challenge rules.
-- Zone rate limiting rules for `/auth/*` and `/api/*`.
+- Zone rate limiting rule for `/auth/*` and `/api/*`.
 
 Minimum security-token permissions:
 - Zone `shrimpworks.dev`: Zone Read, Zone WAF Write
@@ -164,7 +164,7 @@ Recommended staging posture:
 Recommended production posture:
 - Do not put the public web app behind Access.
 - Use managed challenges before hard blocks until real traffic patterns are known.
-- Keep API/auth rate limits enabled.
+- Keep the combined API/auth rate limit enabled.
 
 Pages preview URLs:
 - Add the Pages branch hostname to `staging_access_extra_hostnames` if OpenTofu should include it in the Access app.

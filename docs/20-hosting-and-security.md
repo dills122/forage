@@ -136,7 +136,8 @@ Hosted web and API domains should use WAF/rate-limit controls:
 - Enable `manage_security_controls`.
 - Keep `security_allowed_countries = ["US", "CA"]` unless product testing requires broader access.
 - Use `managed_challenge` before `block` for production until real traffic patterns are better understood.
-- Rate limit `/auth/*` more tightly than `/api/*`.
+- Use the combined `/auth/*` and `/api/*` rate-limit rule on Cloudflare plans that allow only one `http_ratelimit` rule per zone.
+- Use short rate-limit blocks when the Cloudflare plan does not allow managed challenges in `http_ratelimit`.
 
 Cloudflare Pages branch URLs require separate attention:
 - Add the branch hostname to `staging_access_extra_hostnames` if it should be covered by the same Access app.

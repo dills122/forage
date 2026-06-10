@@ -23,7 +23,7 @@ Current OpenTofu scope:
 - Cloudflare KV namespaces for `SETTINGS_KV`.
 - Optional Worker custom domains after the Worker service exists.
 - Optional WAF custom rules for hosted web/API traffic.
-- Optional rate limiting rules for hosted `/auth/*` and `/api/*` endpoints.
+- Optional rate limiting rule for hosted `/auth/*` and `/api/*` endpoints.
 - Optional Cloudflare Access app and policy for staging web allowlisting.
 - Outputs for GitHub App homepage/callback URL values.
 - Outputs for Worker and Pages environment variables.
@@ -78,7 +78,9 @@ staging_access_allowed_emails = [
 ]
 ```
 
-`manage_security_controls` creates zone-level WAF and rate-limit rules for the configured hosted domains. `manage_staging_access` creates a Cloudflare Access self-hosted application for the staging web hostname when at least one allowed email is configured.
+`manage_security_controls` creates zone-level WAF rules and a combined API/auth rate-limit rule for the configured hosted domains. `manage_staging_access` creates a Cloudflare Access self-hosted application for the staging web hostname when at least one allowed email is configured.
+
+The default combined rate limit uses a 10-second period, 10-second mitigation timeout, and `block` action because some Cloudflare plans only allow one rate-limit rule per zone with those `http_ratelimit` values. Raise the entitlement-specific values only after confirming the active zone plan allows them.
 
 For a temporary local token named `TEMP_CLOUDFLARE_API_TOKEN`, run plans with:
 

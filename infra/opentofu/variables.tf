@@ -141,11 +141,11 @@ variable "security_geo_challenge_action" {
 variable "security_rate_limit_action" {
   description = "WAF action used when hosted API or auth rate limits are exceeded."
   type        = string
-  default     = "managed_challenge"
+  default     = "block"
 
   validation {
-    condition     = contains(["managed_challenge", "js_challenge", "challenge", "block"], var.security_rate_limit_action)
-    error_message = "security_rate_limit_action must be one of managed_challenge, js_challenge, challenge, or block."
+    condition     = contains(["block", "managed_challenge", "js_challenge", "challenge"], var.security_rate_limit_action)
+    error_message = "security_rate_limit_action must be one of block, managed_challenge, js_challenge, or challenge."
   }
 }
 
@@ -167,31 +167,17 @@ variable "security_rate_limits_enabled" {
   default     = true
 }
 
-variable "security_auth_rate_limit" {
-  description = "Rate limit threshold for hosted /auth/* endpoints."
+variable "security_api_auth_rate_limit" {
+  description = "Combined rate limit threshold for hosted /auth/* and /api/* endpoints. Some Cloudflare plans allow only one http_ratelimit rule per zone."
   type = object({
     period_seconds             = number
     requests_per_period        = number
     mitigation_timeout_seconds = number
   })
   default = {
-    period_seconds             = 60
+    period_seconds             = 10
     requests_per_period        = 20
-    mitigation_timeout_seconds = 120
-  }
-}
-
-variable "security_api_rate_limit" {
-  description = "Rate limit threshold for hosted /api/* endpoints."
-  type = object({
-    period_seconds             = number
-    requests_per_period        = number
-    mitigation_timeout_seconds = number
-  })
-  default = {
-    period_seconds             = 60
-    requests_per_period        = 120
-    mitigation_timeout_seconds = 120
+    mitigation_timeout_seconds = 10
   }
 }
 

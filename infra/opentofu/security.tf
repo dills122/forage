@@ -16,13 +16,10 @@ locals {
   staging_access_hostnames      = distinct(concat([local.environment_config[var.staging_environment_name].web_hostname], tolist(var.staging_access_extra_hostnames)))
   staging_access_policy_enabled = var.manage_staging_access && length(var.staging_access_allowed_emails) > 0
 
-  production_geo_expression  = "(http.host in ${local.production_security_host_set} and not ip.geoip.country in ${local.security_allowed_country_set})"
-  staging_geo_expression     = "(http.host in ${local.staging_security_host_set} and not ip.geoip.country in ${local.security_allowed_country_set})"
-  api_rate_limit_expression  = <<-EOT
-    (http.host in ${local.security_api_host_set} and starts_with(http.request.uri.path, "/api/"))
-  EOT
-  auth_rate_limit_expression = <<-EOT
-    (http.host in ${local.security_api_host_set} and starts_with(http.request.uri.path, "/auth/"))
+  production_geo_expression      = "(http.host in ${local.production_security_host_set} and not ip.geoip.country in ${local.security_allowed_country_set})"
+  staging_geo_expression         = "(http.host in ${local.staging_security_host_set} and not ip.geoip.country in ${local.security_allowed_country_set})"
+  api_auth_rate_limit_expression = <<-EOT
+    (http.host in ${local.security_api_host_set} and (starts_with(http.request.uri.path, "/api/") or starts_with(http.request.uri.path, "/auth/")))
   EOT
 }
 
@@ -64,29 +61,16 @@ resource "cloudflare_ruleset" "forage_rate_limits" {
 
   rules = [
     {
-      ref         = "forage_auth_rate_limit"
-      description = "Challenge clients that hit GitHub auth endpoints too frequently."
-      expression  = trimspace(local.auth_rate_limit_expression)
+      ref         = "forage_api_auth_rate_limit"
+      description = "Challenge clients that hit Forage API or GitHub auth endpoints too frequently."
+      expression  = trimspace(local.api_auth_rate_limit_expression)
       action      = var.security_rate_limit_action
       enabled     = var.security_rate_limits_enabled
       ratelimit = {
         characteristics     = ["ip.src", "cf.colo.id"]
-        period              = var.security_auth_rate_limit.period_seconds
-        requests_per_period = var.security_auth_rate_limit.requests_per_period
-        mitigation_timeout  = var.security_auth_rate_limit.mitigation_timeout_seconds
-      }
-    },
-    {
-      ref         = "forage_api_rate_limit"
-      description = "Challenge clients that hit Forage API endpoints too frequently."
-      expression  = trimspace(local.api_rate_limit_expression)
-      action      = var.security_rate_limit_action
-      enabled     = var.security_rate_limits_enabled
-      ratelimit = {
-        characteristics     = ["ip.src", "cf.colo.id"]
-        period              = var.security_api_rate_limit.period_seconds
-        requests_per_period = var.security_api_rate_limit.requests_per_period
-        mitigation_timeout  = var.security_api_rate_limit.mitigation_timeout_seconds
+        period              = var.security_api_auth_rate_limit.period_seconds
+        requests_per_period = var.security_api_auth_rate_limit.requests_per_period
+        mitigation_timeout  = var.security_api_auth_rate_limit.mitigation_timeout_seconds
       }
     },
   ]
