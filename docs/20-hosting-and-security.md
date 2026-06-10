@@ -42,6 +42,7 @@ Already implemented:
 - Pages static headers include HSTS, frame denial, referrer policy, nosniff, and a restrictive permissions policy.
 - Repository data, analysis results, reports, and exports stay out of Cloudflare.
 - Initial OpenTofu scaffold for Cloudflare Pages, KV, domains, and environment output wiring.
+- OpenTofu-managed security controls for WAF geo challenges, API/auth rate limits, and optional staging Access allowlist.
 
 Not production-ready yet:
 - Production `SETTINGS_KV` namespace IDs are not configured in `wrangler.toml`.
@@ -94,6 +95,7 @@ Infrastructure:
 - OpenTofu configuration lives in `infra/opentofu`.
 - Keep secret values out of OpenTofu state.
 - Use OpenTofu outputs for `SETTINGS_KV`, Pages env vars, Worker env vars, and GitHub App URLs.
+- Use OpenTofu security variables for WAF, rate limiting, and staging Access once the domain is active in Cloudflare.
 
 Pages production config:
 - Build command: `pnpm --filter @forage/web build`
@@ -121,6 +123,25 @@ Local config:
 - Copy `apps/web/.env.example` to `apps/web/.env` when overriding the Worker origin.
 - Copy `apps/worker/.dev.vars.example` to `apps/worker/.dev.vars`.
 - Never commit `.env`, `.env.local`, `.dev.vars`, or production secret files.
+
+## Traffic Protection
+
+Staging web should be private by default:
+- Enable `manage_staging_access`.
+- Set `staging_access_allowed_emails` to the operator/tester email addresses.
+- Cloudflare Access protects the staging web hostname before the app is reached.
+- Do not put the staging API hostname behind Access initially because OAuth callbacks, cookies, and CORS are easier to validate with WAF and rate limits first.
+
+Hosted web and API domains should use WAF/rate-limit controls:
+- Enable `manage_security_controls`.
+- Keep `security_allowed_countries = ["US", "CA"]` unless product testing requires broader access.
+- Use `managed_challenge` before `block` for production until real traffic patterns are better understood.
+- Use the combined `/auth/*` and `/api/*` rate-limit rule on Cloudflare plans that allow only one `http_ratelimit` rule per zone.
+- Use short rate-limit blocks when the Cloudflare plan does not allow managed challenges in `http_ratelimit`.
+
+Cloudflare Pages branch URLs require separate attention:
+- Add the branch hostname to `staging_access_extra_hostnames` if it should be covered by the same Access app.
+- Also verify Pages preview access settings in the Cloudflare UI because Pages preview URLs can remain reachable outside custom-domain routing.
 
 ## Security Headers
 
@@ -194,6 +215,8 @@ Do not point local development at production KV by default.
 - Verify no repository data is written to Worker logs, KV, D1, R2, or analytics.
 - Verify GitHub tokens are never returned to the browser.
 - Add deployment preview checks after Cloudflare bindings are configured.
+- Verify WAF/rate-limit rules do not break GitHub OAuth start/callback.
+- Verify Cloudflare Access blocks unauthenticated staging web access and allows the configured tester emails.
 
 ## Sources Checked
 

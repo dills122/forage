@@ -136,6 +136,40 @@ Optional fallback KV namespaces:
 
 These are fallback stores only. Production should use `AUTH_COORDINATOR` for OAuth/session coordination.
 
+## Cloudflare Security UI
+
+Before applying OpenTofu Access resources:
+- Open `Zero Trust` in the Cloudflare dashboard.
+- Complete the initial Access setup for the Cloudflare account.
+- Confirm the login method you want testers to use is available.
+
+OpenTofu can manage:
+- Staging web Access application.
+- Staging tester allow policy.
+- Zone WAF geo challenge rules.
+- Zone rate limiting rule for `/auth/*` and `/api/*`.
+
+Minimum security-token permissions:
+- Zone `shrimpworks.dev`: Zone Read, Zone WAF Write
+- Account: Access Apps and Policies Write, Access Organizations Read, Zero Trust Read
+
+If using the same token for the full OpenTofu root, include read/write permissions for the resources already managed in state, such as Pages, Workers KV, Worker scripts/custom domains, and DNS.
+
+Recommended staging posture:
+- Protect `forage-staging.example.com` with Cloudflare Access.
+- Allow only explicit tester email addresses.
+- Do not put `api-staging.forage.example.com` behind Access initially.
+- Use WAF and rate limiting for the API hostname so GitHub OAuth callbacks and credentialed CORS remain straightforward to test.
+
+Recommended production posture:
+- Do not put the public web app behind Access.
+- Use managed challenges before hard blocks until real traffic patterns are known.
+- Keep the combined API/auth rate limit enabled.
+
+Pages preview URLs:
+- Add the Pages branch hostname to `staging_access_extra_hostnames` if OpenTofu should include it in the Access app.
+- Also check Cloudflare Pages preview access settings in the dashboard because preview URLs can be exposed independently from custom domains.
+
 ## GitHub Repository UI
 
 Required repository settings:

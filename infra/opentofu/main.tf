@@ -73,6 +73,8 @@ resource "cloudflare_pages_project" "web" {
 
   deployment_configs = {
     preview = {
+      compatibility_date  = var.pages_compatibility_date
+      compatibility_flags = var.pages_compatibility_flags
       env_vars = {
         NODE_VERSION = {
           type  = "plain_text"
@@ -86,6 +88,8 @@ resource "cloudflare_pages_project" "web" {
       fail_open = false
     }
     production = {
+      compatibility_date  = var.pages_compatibility_date
+      compatibility_flags = var.pages_compatibility_flags
       env_vars = {
         NODE_VERSION = {
           type  = "plain_text"

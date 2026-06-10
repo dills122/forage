@@ -58,3 +58,16 @@ output "pages_custom_domains" {
     }
   }
 }
+
+output "security_controls" {
+  description = "Cloudflare security controls managed by this configuration."
+  value = {
+    waf_ruleset_id        = try(cloudflare_ruleset.forage_firewall_custom[0].id, null)
+    rate_limit_ruleset_id = try(cloudflare_ruleset.forage_rate_limits[0].id, null)
+    staging_access_app = try({
+      id        = cloudflare_zero_trust_access_application.staging_web[0].id
+      domain    = cloudflare_zero_trust_access_application.staging_web[0].domain
+      hostnames = local.staging_access_hostnames
+    }, null)
+  }
+}
