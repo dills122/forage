@@ -51,7 +51,7 @@ export async function runRepositoryImportPipeline(
       const currentPage: number = page;
       onProgress({ importRun, phase: "importing", page: currentPage, observedFieldNames });
       const result = await runImportRequestWithRetry<StarredPageResponse>(
-        () => api.getStarredPage(currentPage, 100, input.signal),
+        (signal) => api.getStarredPage(currentPage, 100, signal),
         { signal: input.signal },
       );
 

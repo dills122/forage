@@ -1,7 +1,7 @@
 # Infrastructure As Code
 
 Status:
-Initial OpenTofu scaffold
+Cloudflare staging path proven
 
 Forage uses OpenTofu-compatible Terraform configuration for Cloudflare resources under `infra/opentofu`.
 
@@ -19,6 +19,7 @@ Current OpenTofu scope:
 - Cloudflare Pages project for `apps/web`.
 - Pages production and preview build environment variables.
 - Pages custom domains.
+- DNS CNAME records for Pages custom domains.
 - Cloudflare KV namespaces for `SETTINGS_KV`.
 - Optional Worker custom domains after the Worker service exists.
 - Outputs for GitHub App homepage/callback URL values.
@@ -56,6 +57,10 @@ tofu plan
 Set `manage_worker_custom_domains = false` until the Worker service has been deployed at least once.
 
 After apply, copy the `settings_kv_namespaces` output into the Worker binding configuration as `SETTINGS_KV` for each environment.
+
+Worker custom domains intentionally attach to the Cloudflare Worker service environment named `production`. Wrangler environment deploys create separate Worker service names, such as `forage-worker-staging`, and each of those services exposes its deployed code under Cloudflare's service-level `production` environment.
+
+Pages custom domain DNS is managed by OpenTofu when `manage_pages_domains = true`. Production points at `<pages_project_name>.pages.dev`; non-production environments point at `<environment>.<pages_project_name>.pages.dev`, so the Pages branch name must match the environment key.
 
 Use [Deployment Automation](./23-deployment-automation.md) for the GitHub Actions workflow, repository secrets, GitHub environment variables, and first deployment order.
 

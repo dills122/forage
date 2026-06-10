@@ -41,7 +41,7 @@ test("GitHub auth uses state and PKCE verifier during token exchange", async () 
     assert.equal(callbackResponse.headers.get("location"), "https://forage.test");
     assert.equal(tokenExchangeBodies.length, 1);
     assert.equal(tokenExchangeBodies[0].code, "test-code");
-    assert.match(tokenExchangeBodies[0].code_verifier, /^[A-Za-z0-9_-]{32,}$/);
+    assert.match(tokenExchangeBodies[0].code_verifier, /^[A-Za-z0-9._~-]{43,128}$/);
   } finally {
     restoreFetch();
   }

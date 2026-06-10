@@ -8,6 +8,7 @@ const workerOrigin = normalizeOrigin(
 const untrustedOrigin = normalizeOrigin(
   process.env.FORAGE_UNTRUSTED_ORIGIN ?? "https://forage-smoke.invalid",
 );
+const expectProductionConfig = parseBooleanEnv(process.env.FORAGE_SMOKE_EXPECT_PRODUCTION, true);
 
 const failures = [];
 
@@ -63,7 +64,10 @@ assertHeader(
 if (allowedConfig.payload?.stores_repository_data !== false) {
   failures.push("Worker config must report stores_repository_data: false.");
 }
-if (Object.hasOwn(allowedConfig.payload ?? {}, "has_github_client_secret")) {
+if (
+  expectProductionConfig &&
+  Object.hasOwn(allowedConfig.payload ?? {}, "has_github_client_secret")
+) {
   failures.push("Production Worker config exposes has_github_client_secret diagnostics.");
 }
 
@@ -163,4 +167,9 @@ function assertHeader(response, name, expected, label, { optional = false } = {}
 
 function normalizeOrigin(origin) {
   return origin.trim().replace(/\/+$/, "");
+}
+
+function parseBooleanEnv(value, fallback) {
+  if (value === undefined) return fallback;
+  return !["0", "false", "no"].includes(value.trim().toLowerCase());
 }

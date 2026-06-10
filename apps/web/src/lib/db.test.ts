@@ -1,5 +1,6 @@
 import { analyzeRepository } from "@forage/analysis";
 import type { ForageRepository, ImportEvent } from "@forage/shared";
+import Dexie from "dexie";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   acquireLocalOperationLock,
@@ -16,6 +17,12 @@ import {
   saveLocalLibraryProfile,
   saveRepositories,
 } from "./db";
+import {
+  createForageDatabase,
+  forageDatabaseStores,
+  forageDatabaseVersion,
+  localLibraryProfileKey,
+} from "./db-schema";
 
 describe("local data store", () => {
   beforeEach(async () => {
@@ -142,6 +149,69 @@ describe("local data store", () => {
     if (!blocked.acquired) {
       expect(blocked.lock.owner_id).toBe("replacement-owner");
       expect(blocked.lock.expires_at).toBe("2026-06-06T12:00:13.000Z");
+    }
+  });
+});
+
+describe("local data schema", () => {
+  it("keeps the current schema contract explicit", () => {
+    expect(forageDatabaseVersion).toBe(3);
+    expect(forageDatabaseStores).toEqual({
+      repositories: "github_id, &full_name, primary_language, starred_at",
+      importEvents: "id",
+      metadata: "id",
+      analysisResults: "repository_id, &repository_full_name, analysis_version",
+    });
+  });
+
+  it("upgrades v2 local data without dropping existing records", async () => {
+    const databaseName = `forage-migration-${crypto.randomUUID()}`;
+    const repository = createRepository(10, "forage/migration");
+    const event = createImportEvent("event-migration", "2026-06-06T12:00:00.000Z");
+    const legacyDatabase = new Dexie(databaseName);
+
+    legacyDatabase.version(2).stores({
+      repositories: forageDatabaseStores.repositories,
+      importEvents: forageDatabaseStores.importEvents,
+      metadata: forageDatabaseStores.metadata,
+    });
+
+    try {
+      await legacyDatabase.open();
+      await legacyDatabase.table("repositories").put(repository);
+      await legacyDatabase.table("importEvents").put(event);
+      await legacyDatabase.table("metadata").put({
+        id: localLibraryProfileKey,
+        github_login: "dills122",
+        github_user_id: 123,
+        repository_count: 1,
+        updated_at: "2026-06-06T12:00:00.000Z",
+      });
+      legacyDatabase.close();
+
+      const upgradedDatabase = createForageDatabase(databaseName);
+      await upgradedDatabase.open();
+
+      expect(await upgradedDatabase.repositories.toArray()).toMatchObject([
+        { github_id: 10, full_name: "forage/migration" },
+      ]);
+      expect(await upgradedDatabase.importEvents.toArray()).toMatchObject([
+        { id: "event-migration", status: "completed" },
+      ]);
+      expect(await upgradedDatabase.metadata.get(localLibraryProfileKey)).toMatchObject({
+        github_login: "dills122",
+        repository_count: 1,
+      });
+
+      await upgradedDatabase.analysisResults.put(analyzeRepository(repository));
+      expect(await upgradedDatabase.analysisResults.toArray()).toMatchObject([
+        { repository_id: 10, repository_full_name: "forage/migration" },
+      ]);
+
+      upgradedDatabase.close();
+    } finally {
+      legacyDatabase.close();
+      await Dexie.delete(databaseName);
     }
   });
 });

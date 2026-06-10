@@ -15,7 +15,7 @@ Replace the placeholder domains below before production:
 
 - Production web: `https://forage.example.com`
 - Production API: `https://api.forage.example.com`
-- Staging web: `https://staging.forage.example.com`
+- Staging web: `https://forage-staging.example.com`
 - Staging API: `https://api-staging.forage.example.com`
 
 ## GitHub App UI
@@ -95,7 +95,7 @@ Staging Worker variables:
 - `ENVIRONMENT=staging`
 - `GITHUB_API_VERSION=2022-11-28`
 - `GITHUB_REDIRECT_URI=https://api-staging.forage.example.com/auth/github/callback`
-- `WEB_ORIGIN=https://staging.forage.example.com`
+- `WEB_ORIGIN=https://forage-staging.example.com`
 
 Production Worker secrets:
 - `GITHUB_CLIENT_ID`
@@ -173,7 +173,7 @@ FORAGE_WORKER_ORIGIN=https://api.forage.example.com \
 pnpm smoke:hosted
 ```
 
-For staging, use the staging web and API origins. This script verifies Worker health, CORS, preflight headers, Pages security headers, CSP Worker origin, and basic app HTML.
+For staging, use the staging web and API origins and set `FORAGE_SMOKE_EXPECT_PRODUCTION=false`. This script verifies Worker health, CORS, preflight headers, Pages security headers, CSP Worker origin, and basic app HTML.
 
 Verify Worker health:
 - `GET https://api.forage.example.com/api/health`

@@ -6,6 +6,11 @@ Initial browser schema implemented
 Primary storage:
 IndexedDB in the user's browser.
 
+Current browser database:
+- Name: `forage`
+- Version: `3`
+- Store contract: exported from `apps/web/src/lib/db-schema.ts`
+
 Local data classes:
 - Repository metadata
 - Import events
@@ -32,6 +37,8 @@ Required schema properties:
 Migration posture:
 Use forward migrations for local IndexedDB data when practical. If a future schema change is too large or risky to migrate safely, Forage may require a local reset and GitHub re-import, but that should be exceptional.
 
+The current test suite includes a fixture-backed upgrade check from the previous v2 local schema into the current v3 schema. Any future browser database version bump should add a matching fixture test that proves existing repository, import event, profile, and analysis records are either preserved or intentionally migrated.
+
 Backup and restore:
 JSON export should be the first supported full-state backup format. Restore should validate schema version, show incompatible version errors clearly, and avoid silently merging incompatible data.
 
@@ -53,7 +60,7 @@ Current IndexedDB stores:
   - Indexes: `repository_full_name`, `analysis_version`
 - `metadata`
   - Key: `id`
-  - Current record: `local-library-profile`
+  - Current records: `local-library-profile`, `local-operation-lock`
 
 Current server settings behavior:
 - `GET /api/settings` returns the authenticated session's settings.

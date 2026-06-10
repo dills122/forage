@@ -114,6 +114,23 @@ resource "cloudflare_pages_domain" "web" {
   depends_on = [cloudflare_pages_project.web]
 }
 
+resource "cloudflare_dns_record" "pages_web" {
+  for_each = {
+    for name, environment in local.environment_config : name => environment
+    if var.manage_pages_domains && environment.manage_pages_domain
+  }
+
+  zone_id = var.cloudflare_zone_id
+  name    = each.value.web_hostname
+  type    = "CNAME"
+  content = each.key == "production" ? "${var.pages_project_name}.pages.dev" : "${each.key}.${var.pages_project_name}.pages.dev"
+  proxied = true
+  ttl     = 1
+  comment = "Forage ${each.key} Pages custom domain"
+
+  depends_on = [cloudflare_pages_domain.web]
+}
+
 resource "cloudflare_workers_custom_domain" "api" {
   for_each = {
     for name, environment in local.environment_config : name => environment
@@ -121,9 +138,8 @@ resource "cloudflare_workers_custom_domain" "api" {
   }
 
   account_id  = var.cloudflare_account_id
-  environment = each.key
+  environment = "production"
   hostname    = each.value.api_hostname
   service     = each.value.worker_service_name
   zone_id     = var.cloudflare_zone_id
-  zone_name   = var.cloudflare_zone_name
 }
