@@ -10,7 +10,7 @@ Forage deploys through `.github/workflows/deploy.yml`. The workflow is manual-on
 - `environment`: `staging` or `production`
 - `deploy_worker`: deploy `apps/worker` with Wrangler
 - `deploy_pages`: deploy `apps/web/dist` to Cloudflare Pages with Wrangler direct upload
-- `run_hosted_smoke`: run `pnpm smoke:hosted` after deployment
+- `run_hosted_smoke`: run `pnpm smoke:hosted` after deployment, enabled by default
 
 ## GitHub Repository Secrets
 
@@ -81,7 +81,7 @@ FORAGE_WEB_SMOKE_MODE=access-protected \
 pnpm smoke:hosted
 ```
 
-Set `FORAGE_SMOKE_EXPECT_PRODUCTION=false` for staging because staging Worker config intentionally exposes non-secret setup diagnostics. Set `FORAGE_WEB_SMOKE_MODE=access-protected` when Cloudflare Access protects the staging web hostname. Leave both unset for production so the smoke check verifies public Pages HTML/security headers and confirms production config hides diagnostics.
+The deploy workflow sets `FORAGE_SMOKE_EXPECT_PRODUCTION=false` and `FORAGE_WEB_SMOKE_MODE=access-protected` automatically for staging because staging Worker config intentionally exposes non-secret setup diagnostics and the staging web hostname is behind Cloudflare Access. For production, the workflow sets `FORAGE_SMOKE_EXPECT_PRODUCTION=true` and `FORAGE_WEB_SMOKE_MODE=public` so the smoke check verifies public Pages HTML/security headers and confirms production config hides diagnostics.
 
 When using Cloudflare Pages custom branch domains, the staging branch name should match the OpenTofu environment key. For example, the `staging` environment maps to `staging.<pages_project_name>.pages.dev` and can be connected to a custom hostname such as `forage-staging.example.com`.
 
