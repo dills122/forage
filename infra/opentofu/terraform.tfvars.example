@@ -20,10 +20,9 @@ staging_access_allowed_emails = [
   "replace-with-your-email@example.com",
 ]
 
-# Optional: protect the Cloudflare Pages branch URL as well as the custom staging hostname.
-staging_access_extra_hostnames = [
-  "staging.forage-web.pages.dev",
-]
+# Keep the staging Access app scoped to the canonical custom hostname by default.
+# Protect Pages preview URLs separately in the Cloudflare Pages UI if needed.
+staging_access_extra_hostnames = []
 
 environments = {
   staging = {

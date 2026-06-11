@@ -158,6 +158,7 @@ If using the same token for the full OpenTofu root, include read/write permissio
 Recommended staging posture:
 - Protect `forage-staging.example.com` with Cloudflare Access.
 - Allow only explicit tester email addresses.
+- Keep Access cookies at `SameSite=Lax` so OAuth callback redirects can return to staging without requiring a hard refresh.
 - Do not put `api-staging.forage.example.com` behind Access initially.
 - Use WAF and rate limiting for the API hostname so GitHub OAuth callbacks and credentialed CORS remain straightforward to test.
 
@@ -167,8 +168,8 @@ Recommended production posture:
 - Keep the combined API/auth rate limit enabled.
 
 Pages preview URLs:
-- Add the Pages branch hostname to `staging_access_extra_hostnames` if OpenTofu should include it in the Access app.
-- Also check Cloudflare Pages preview access settings in the dashboard because preview URLs can be exposed independently from custom domains.
+- Keep `staging_access_extra_hostnames` empty by default so the staging Access app protects only the canonical custom hostname.
+- Check Cloudflare Pages preview access settings in the dashboard if branch URLs need protection because preview URLs can be exposed independently from custom domains.
 
 ## GitHub Repository UI
 

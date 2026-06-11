@@ -80,6 +80,8 @@ staging_access_allowed_emails = [
 
 `manage_security_controls` creates zone-level WAF rules and a combined API/auth rate-limit rule for the configured hosted domains. `manage_staging_access` creates a Cloudflare Access self-hosted application for the staging web hostname when at least one allowed email is configured.
 
+The staging Access app defaults to `SameSite=Lax` cookies and the canonical custom staging hostname only. Keep `staging_access_extra_hostnames` empty unless a second hostname has been explicitly tested, because mixing the custom hostname and `pages.dev` branch hostname in one Access app can create confusing cross-host redirect/session behavior.
+
 The default combined rate limit uses a 10-second period, 10-second mitigation timeout, and `block` action because some Cloudflare plans only allow one rate-limit rule per zone with those `http_ratelimit` values. Raise the entitlement-specific values only after confirming the active zone plan allows them.
 
 For a temporary local token named `TEMP_CLOUDFLARE_API_TOKEN`, run plans with:

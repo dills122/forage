@@ -103,7 +103,7 @@ resource "cloudflare_zero_trust_access_application" "staging_web" {
   app_launcher_visible       = false
   enable_binding_cookie      = true
   http_only_cookie_attribute = true
-  same_site_cookie_attribute = "strict"
+  same_site_cookie_attribute = var.staging_access_same_site_cookie_attribute
   session_duration           = var.staging_access_session_duration
 
   destinations = [
