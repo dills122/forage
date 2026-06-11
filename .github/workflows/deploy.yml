@@ -24,7 +24,7 @@ on:
         description: "Run hosted smoke checks after deploy"
         required: true
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -82,12 +82,16 @@ jobs:
               worker_origin="${{ vars.FORAGE_PRODUCTION_WORKER_ORIGIN }}"
               pages_branch="${{ vars.FORAGE_PRODUCTION_PAGES_BRANCH }}"
               default_pages_branch="main"
+              smoke_expect_production="true"
+              web_smoke_mode="public"
               ;;
             staging)
               web_origin="${{ vars.FORAGE_STAGING_WEB_ORIGIN }}"
               worker_origin="${{ vars.FORAGE_STAGING_WORKER_ORIGIN }}"
               pages_branch="${{ vars.FORAGE_STAGING_PAGES_BRANCH }}"
               default_pages_branch="staging"
+              smoke_expect_production="false"
+              web_smoke_mode="access-protected"
               ;;
             *)
               echo "::error::Unsupported deployment environment: $environment_name"
@@ -114,6 +118,8 @@ jobs:
             echo "web_origin=$web_origin"
             echo "worker_origin=$worker_origin"
             echo "pages_branch=$pages_branch"
+            echo "smoke_expect_production=$smoke_expect_production"
+            echo "web_smoke_mode=$web_smoke_mode"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check infra formatting
@@ -145,4 +151,6 @@ jobs:
         env:
           FORAGE_WEB_ORIGIN: ${{ steps.resolve.outputs.web_origin }}
           FORAGE_WORKER_ORIGIN: ${{ steps.resolve.outputs.worker_origin }}
+          FORAGE_SMOKE_EXPECT_PRODUCTION: ${{ steps.resolve.outputs.smoke_expect_production }}
+          FORAGE_WEB_SMOKE_MODE: ${{ steps.resolve.outputs.web_smoke_mode }}
         run: pnpm smoke:hosted

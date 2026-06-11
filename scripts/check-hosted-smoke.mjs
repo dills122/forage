@@ -9,6 +9,8 @@ const untrustedOrigin = normalizeOrigin(
   process.env.FORAGE_UNTRUSTED_ORIGIN ?? "https://forage-smoke.invalid",
 );
 const expectProductionConfig = parseBooleanEnv(process.env.FORAGE_SMOKE_EXPECT_PRODUCTION, true);
+const webSmokeMode = process.env.FORAGE_WEB_SMOKE_MODE ?? "public";
+const skipOAuthStart = parseBooleanEnv(process.env.FORAGE_SMOKE_SKIP_OAUTH_START, false);
 
 const failures = [];
 
@@ -21,7 +23,14 @@ Set:
 
 Optional:
   FORAGE_UNTRUSTED_ORIGIN=https://untrusted.example.com
+  FORAGE_WEB_SMOKE_MODE=public
+  FORAGE_SMOKE_SKIP_OAUTH_START=false
 `);
+  process.exit(1);
+}
+
+if (!["public", "access-protected"].includes(webSmokeMode)) {
+  console.error("FORAGE_WEB_SMOKE_MODE must be public or access-protected.");
   process.exit(1);
 }
 
@@ -81,6 +90,78 @@ if (rejectedConfig.response.headers.has("access-control-allow-origin")) {
   failures.push("Worker config returned Access-Control-Allow-Origin for an untrusted origin.");
 }
 
+const session = await fetchJson(`${workerOrigin}/api/session`, {
+  label: "Worker unauthenticated session",
+  headers: {
+    Origin: webOrigin,
+  },
+});
+assertHeader(
+  session.response,
+  "access-control-allow-origin",
+  webOrigin,
+  "Worker unauthenticated session",
+);
+assertHeader(
+  session.response,
+  "access-control-allow-credentials",
+  /^true$/i,
+  "Worker unauthenticated session",
+);
+if (session.payload?.authenticated !== false) {
+  failures.push("Worker unauthenticated session response must report authenticated: false.");
+}
+
+if (!skipOAuthStart) {
+  const authStart = await fetch(`${workerOrigin}/auth/github`, {
+    redirect: "manual",
+    headers: {
+      Origin: webOrigin,
+    },
+  });
+  if (authStart.status !== 302) {
+    failures.push(`GitHub OAuth start returned ${authStart.status}; expected 302.`);
+  }
+  assertHeader(
+    authStart,
+    "location",
+    /^https:\/\/github\.com\/login\/oauth\/authorize\?/i,
+    "GitHub OAuth start",
+  );
+  assertHeader(authStart, "set-cookie", /forage_oauth_state=/i, "GitHub OAuth start");
+
+  const authLocation = authStart.headers.get("location");
+  if (authLocation) {
+    const authUrl = new URL(authLocation);
+    const redirectUri = authUrl.searchParams.get("redirect_uri");
+    if (redirectUri !== `${workerOrigin}/auth/github/callback`) {
+      failures.push(
+        `GitHub OAuth start redirect_uri was ${redirectUri}; expected ${workerOrigin}/auth/github/callback.`,
+      );
+    }
+    if (authUrl.searchParams.get("code_challenge_method") !== "S256") {
+      failures.push("GitHub OAuth start is missing PKCE code_challenge_method=S256.");
+    }
+    if (!authUrl.searchParams.get("code_challenge")) {
+      failures.push("GitHub OAuth start is missing PKCE code_challenge.");
+    }
+    if (!authUrl.searchParams.get("state")) {
+      failures.push("GitHub OAuth start is missing state.");
+    }
+  }
+
+  const oauthCookie = authStart.headers.get("set-cookie") ?? "";
+  if (!/HttpOnly/i.test(oauthCookie)) {
+    failures.push("GitHub OAuth start cookie is missing HttpOnly.");
+  }
+  if (!/SameSite=Lax/i.test(oauthCookie)) {
+    failures.push("GitHub OAuth start cookie is missing SameSite=Lax.");
+  }
+  if (workerIsHttps && !/Secure/i.test(oauthCookie)) {
+    failures.push("GitHub OAuth start cookie is missing Secure.");
+  }
+}
+
 const preflight = await fetch(`${workerOrigin}/api/settings`, {
   method: "OPTIONS",
   headers: {
@@ -100,28 +181,46 @@ assertHeader(
   "Worker settings preflight",
 );
 
-const webResponse = await fetch(webOrigin);
-if (!webResponse.ok) {
-  failures.push(`Web app returned ${webResponse.status}; expected 2xx.`);
-}
-const webHtml = await webResponse.text();
-if (!webHtml.includes('id="forage-app"')) {
-  failures.push("Web app HTML is missing the Forage app root.");
-}
-if (!webHtml.includes("Starred repos, ready to sort through.")) {
-  failures.push("Web app HTML is missing the expected heading.");
-}
-if (!webHtml.includes(`connect-src 'self' ${workerOrigin}`)) {
-  failures.push("Web app CSP meta tag does not include the configured Worker origin.");
-}
-assertHeader(webResponse, "x-content-type-options", /^nosniff$/i, "Web app");
-assertHeader(webResponse, "x-frame-options", /^DENY$/i, "Web app");
-assertHeader(webResponse, "referrer-policy", /^strict-origin-when-cross-origin$/i, "Web app");
-assertHeader(webResponse, "permissions-policy", /camera=\(\)/i, "Web app");
-assertHeader(webResponse, "content-security-policy", /frame-ancestors 'none'/i, "Web app");
+if (webSmokeMode === "public") {
+  const webResponse = await fetch(webOrigin);
+  if (!webResponse.ok) {
+    failures.push(`Web app returned ${webResponse.status}; expected 2xx.`);
+  }
+  const webHtml = await webResponse.text();
+  if (!webHtml.includes('id="forage-app"')) {
+    failures.push("Web app HTML is missing the Forage app root.");
+  }
+  if (!webHtml.includes("Starred repos, ready to sort through.")) {
+    failures.push("Web app HTML is missing the expected heading.");
+  }
+  if (!webHtml.includes(`connect-src 'self' ${workerOrigin}`)) {
+    failures.push("Web app CSP meta tag does not include the configured Worker origin.");
+  }
+  assertHeader(webResponse, "x-content-type-options", /^nosniff$/i, "Web app");
+  assertHeader(webResponse, "x-frame-options", /^DENY$/i, "Web app");
+  assertHeader(webResponse, "referrer-policy", /^strict-origin-when-cross-origin$/i, "Web app");
+  assertHeader(webResponse, "permissions-policy", /camera=\(\)/i, "Web app");
+  assertHeader(webResponse, "content-security-policy", /frame-ancestors 'none'/i, "Web app");
 
-if (webIsHttps) {
-  assertHeader(webResponse, "strict-transport-security", /max-age=/i, "Web app");
+  if (webIsHttps) {
+    assertHeader(webResponse, "strict-transport-security", /max-age=/i, "Web app");
+  }
+} else {
+  const webResponse = await fetch(webOrigin, { redirect: "manual" });
+  const location = webResponse.headers.get("location") ?? "";
+  const body = await webResponse.text().catch(() => "");
+  const accessRedirect =
+    [301, 302, 303, 307, 308].includes(webResponse.status) &&
+    (/cloudflareaccess\.com/i.test(location) || /\/cdn-cgi\/access/i.test(location));
+  const accessDenied =
+    [401, 403].includes(webResponse.status) &&
+    (/cloudflare access/i.test(body) || /\/cdn-cgi\/access/i.test(body));
+
+  if (!accessRedirect && !accessDenied) {
+    failures.push(
+      `Access-protected web returned ${webResponse.status}; expected Cloudflare Access redirect or denial.`,
+    );
+  }
 }
 if (workerIsHttps) {
   assertHeader(health.response, "strict-transport-security", /max-age=/i, "Worker health", {
