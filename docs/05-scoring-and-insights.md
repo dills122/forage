@@ -2,7 +2,7 @@
 # Scoring & Insights
 
 Status:
-First v0.1 foundational scoring model drafted
+First v0.1 foundational scoring model implemented
 
 Purpose:
 Fun, explainable ranking system.
@@ -55,8 +55,8 @@ Formula requirements:
 - Tune weights for each signal.
 - Tune caps and normalization rules so very popular repositories do not dominate every ranking.
 - Tune how archived, disabled, stale, and recently revived repositories affect scores.
-- Define how score version changes affect existing local analysis.
-- Define how user-agnostic scores feed, but do not mutate, future personalized match scoring.
+- Keep score version changes explicit in local analysis results and exports.
+- Keep user-agnostic scores separate from any future personalized match scoring.
 
 Current v0.1 scoring behavior:
 - Score version: `foundational-v0.1.0`.

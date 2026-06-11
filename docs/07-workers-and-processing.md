@@ -4,7 +4,7 @@
 Import Web Worker
 
 Status:
-Planned
+Planned for pagination/orchestration hardening. Current imports are initiated from the web app and use shared import state contracts.
 
 Responsibilities:
 - GitHub pagination
@@ -40,7 +40,7 @@ Cloudflare Workers are separate from these browser workers and should only handl
 
 Required follow-up:
 - Move import pagination/orchestration into a browser worker.
-- Decide REST vs GraphQL for import.
-- Confirm pagination and rate-limit behavior.
+- Keep REST as the MVP import path; revisit GraphQL only if future richer metadata needs justify it.
+- Continue measuring pagination and rate-limit behavior on hosted imports.
 - Decide incremental refresh behavior.
 - Decide how partial imports are represented.

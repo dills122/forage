@@ -1,8 +1,35 @@
 # Forage
 
-Forage is a privacy-first GitHub repository rediscovery tool.
+Forage is a privacy-first GitHub repository rediscovery tool. Users authorize GitHub, import starred repositories into browser-local IndexedDB, run local analysis, review scores/categories, and export results without storing repository data server-side.
 
-The current repo contains planning docs plus a minimal pre-MVP spike app used to validate:
+The current repo contains the real Astro/Svelte web app, Cloudflare Worker auth/import API, shared packages, infrastructure configuration, hosted smoke checks, and the retained pre-MVP spike.
+
+## Documentation Map
+
+Start with [docs/README.md](./docs/README.md) for the full link tree and current hosted environment map.
+
+High-signal docs:
+
+- [Architecture](./docs/02-architecture.md)
+- [Auth And Privacy](./docs/11-auth-and-privacy.md)
+- [Storage Schema](./docs/13-storage-schema.md)
+- [Import Pipeline](./docs/12-import-pipeline.md)
+- [Hosting UI Setup](./docs/21-hosting-ui-setup.md)
+- [Cloudflare Token Permissions](./docs/24-cloudflare-token-permissions.md)
+
+## Current App
+
+The real app is split into:
+
+- `apps/web`: Astro browser app with Svelte islands, IndexedDB storage, local analysis, dashboard, and exports.
+- `apps/worker`: Cloudflare Worker for GitHub auth, session/settings, and GitHub API proxying.
+- `packages/*`: shared contracts, core import state, GitHub normalization, analysis/scoring, and reporting.
+
+Repository data imported through the real app is stored in browser IndexedDB, not in the Worker.
+
+## Pre-MVP Spike
+
+The minimal pre-MVP spike remains as a reference for the first proven vertical slice:
 
 - GitHub App user authorization
 - Authenticated starred repository import
@@ -11,8 +38,6 @@ The current repo contains planning docs plus a minimal pre-MVP spike app used to
 - Local IndexedDB storage
 - Browser Web Worker analysis
 - JSON export
-
-## Pre-MVP Spike
 
 Copy `.env.example` to `.env` or export the variables in your shell:
 
@@ -37,11 +62,6 @@ http://localhost:5173
 This app is intentionally small and dependency-free. It is not the final Astro/Cloudflare implementation.
 
 ## Real App Local Dev
-
-The real app is split into:
-
-- `apps/web`: Astro browser app
-- `apps/worker`: Cloudflare Worker auth/import API
 
 Copy the Worker env example:
 
@@ -72,8 +92,6 @@ Then open:
 ```text
 http://127.0.0.1:4321
 ```
-
-Repository data imported through the real app is stored in browser IndexedDB, not in the Worker.
 
 ## Hosted Setup
 

@@ -4,7 +4,7 @@
 Categories are fully configuration-driven.
 
 Status:
-First v0.1 weighted-rule model drafted
+First v0.1 weighted-rule model implemented
 
 MVP category strategy:
 Start broad and general. The first category set should be wide enough to classify most repositories without getting stuck on highly specific niches.
@@ -59,10 +59,10 @@ languages:
 
 Open design items:
 - Tune category coverage against real imports
-- Decide when to persist analysis results versus calculating on read
-- Multi-category behavior
+- Continue validating persisted analysis results versus calculating on read for future schema changes
+- Tune multi-category behavior and display priority
 - Deprecated category handling
-- Versioning and migration strategy for category changes
+- Versioning and migration strategy for future category changes
 - Criteria for promoting narrower categories after real data review
 
 Current v0.1 behavior:

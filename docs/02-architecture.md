@@ -44,8 +44,9 @@ Monorepo:
 - pnpm workspaces
 
 apps/
+  pre-mvp/
   web/
-  cli/
+  worker/
 
 packages/
   core/

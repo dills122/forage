@@ -4,9 +4,9 @@
 Repository metadata should be normalized into a consistent internal model.
 
 Status:
-Discovery Required
+Initial contract implemented
 
-The exact model should be finalized after testing the GitHub API response shape against real accounts. The model below is the starting point, not a locked schema.
+The repository model is implemented in `packages/shared/src/repository.ts` and populated from the GitHub REST starred repository response. The fields below are the current shared contract, with nullable values where GitHub can omit data.
 
 Fields:
 
@@ -61,8 +61,8 @@ Category Metadata:
 - repo name
 
 Required follow-up:
-- Confirm available fields from GitHub's starred repository endpoint.
-- Decide whether per-repository detail calls are needed beyond the starred list response.
-- Define nullable fields.
-- Define IndexedDB schema and migration behavior.
-- Define analysis result and export models separately from repository metadata.
+- Continue validating nullable fields against larger real account imports.
+- Avoid per-repository detail calls unless a specific MVP feature requires fields missing from the starred list response.
+- Keep IndexedDB schema and migration behavior aligned with [Storage Schema](./13-storage-schema.md).
+- Keep analysis result and export models separate from repository metadata.
+- Update this document and `packages/shared` together when repository fields change.
