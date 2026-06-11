@@ -155,6 +155,8 @@ Minimum security-token permissions:
 
 If using the same token for the full OpenTofu root, include read/write permissions for the resources already managed in state, such as Pages, Workers KV, Worker scripts/custom domains, and DNS.
 
+Use [Cloudflare Token Permissions](./24-cloudflare-token-permissions.md) for the full local infra, deploy workflow, and temporary recovery token permission matrix.
+
 Recommended staging posture:
 - Protect `forage-staging.example.com` with Cloudflare Access.
 - Allow only explicit tester email addresses.

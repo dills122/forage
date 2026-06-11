@@ -32,6 +32,7 @@ export CLOUDFLARE_API_TOKEN=...
 ```
 
 The token needs enough access to manage Pages, Workers custom domains, and Workers KV in the selected account and zone.
+See `../../docs/24-cloudflare-token-permissions.md` for the full infra, deploy, and temporary recovery token permission profiles.
 
 Formatting:
 

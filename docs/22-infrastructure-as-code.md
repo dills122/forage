@@ -93,6 +93,7 @@ CLOUDFLARE_API_TOKEN="$TEMP_CLOUDFLARE_API_TOKEN" tofu plan
 If the same OpenTofu state already manages Pages, KV, DNS, or Worker custom domains, a normal `tofu plan` refreshes those resources too. The API token must therefore be able to read existing managed resources, not only the new security resources. A narrow security-only token can validate the new resources with `-refresh=false`, but use a full infra/deploy token for normal apply runs.
 
 Use [Deployment Automation](./23-deployment-automation.md) for the GitHub Actions workflow, repository secrets, GitHub environment variables, and first deployment order.
+Use [Cloudflare Token Permissions](./24-cloudflare-token-permissions.md) for the exact full infra, deploy, and temporary recovery token permission profiles.
 
 ## Sources Checked
 
