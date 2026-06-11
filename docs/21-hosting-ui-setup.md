@@ -207,7 +207,17 @@ FORAGE_WORKER_ORIGIN=https://api.forage.example.com \
 pnpm smoke:hosted
 ```
 
-For staging, use the staging web and API origins and set `FORAGE_SMOKE_EXPECT_PRODUCTION=false`. This script verifies Worker health, CORS, preflight headers, Pages security headers, CSP Worker origin, and basic app HTML.
+For staging, use the staging web and API origins, set `FORAGE_SMOKE_EXPECT_PRODUCTION=false`, and set `FORAGE_WEB_SMOKE_MODE=access-protected` when Cloudflare Access protects the staging web hostname:
+
+```sh
+FORAGE_WEB_ORIGIN=https://forage-staging.shrimpworks.dev \
+FORAGE_WORKER_ORIGIN=https://api-staging.forage.shrimpworks.dev \
+FORAGE_SMOKE_EXPECT_PRODUCTION=false \
+FORAGE_WEB_SMOKE_MODE=access-protected \
+pnpm smoke:hosted
+```
+
+This script verifies Worker health, CORS, unauthenticated session shape, GitHub OAuth start redirect/PKCE setup, preflight headers, and either public Pages HTML/security headers or Cloudflare Access protection depending on `FORAGE_WEB_SMOKE_MODE`.
 
 Verify Worker health:
 - `GET https://api.forage.example.com/api/health`

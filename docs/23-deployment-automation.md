@@ -77,10 +77,11 @@ Hosted smoke:
 FORAGE_WEB_ORIGIN=https://staging.forage.example.com \
 FORAGE_WORKER_ORIGIN=https://api-staging.forage.example.com \
 FORAGE_SMOKE_EXPECT_PRODUCTION=false \
+FORAGE_WEB_SMOKE_MODE=access-protected \
 pnpm smoke:hosted
 ```
 
-Set `FORAGE_SMOKE_EXPECT_PRODUCTION=false` for staging because staging Worker config intentionally exposes non-secret setup diagnostics. Leave it unset for production so the smoke check verifies that production config hides those diagnostics.
+Set `FORAGE_SMOKE_EXPECT_PRODUCTION=false` for staging because staging Worker config intentionally exposes non-secret setup diagnostics. Set `FORAGE_WEB_SMOKE_MODE=access-protected` when Cloudflare Access protects the staging web hostname. Leave both unset for production so the smoke check verifies public Pages HTML/security headers and confirms production config hides diagnostics.
 
 When using Cloudflare Pages custom branch domains, the staging branch name should match the OpenTofu environment key. For example, the `staging` environment maps to `staging.<pages_project_name>.pages.dev` and can be connected to a custom hostname such as `forage-staging.example.com`.
 
