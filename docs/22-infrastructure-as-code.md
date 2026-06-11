@@ -80,6 +80,8 @@ staging_access_allowed_emails = [
 
 `manage_security_controls` creates zone-level WAF rules and a combined API/auth rate-limit rule for the configured hosted domains. `manage_staging_access` creates a Cloudflare Access self-hosted application for the staging web hostname when at least one allowed email is configured.
 
+The staging Access app defaults to `SameSite=Lax` cookies and the canonical custom staging hostname only. Keep `staging_access_extra_hostnames` empty unless a second hostname has been explicitly tested, because mixing the custom hostname and `pages.dev` branch hostname in one Access app can create confusing cross-host redirect/session behavior.
+
 The default combined rate limit uses a 10-second period, 10-second mitigation timeout, and `block` action because some Cloudflare plans only allow one rate-limit rule per zone with those `http_ratelimit` values. Raise the entitlement-specific values only after confirming the active zone plan allows them.
 
 For a temporary local token named `TEMP_CLOUDFLARE_API_TOKEN`, run plans with:
@@ -91,6 +93,7 @@ CLOUDFLARE_API_TOKEN="$TEMP_CLOUDFLARE_API_TOKEN" tofu plan
 If the same OpenTofu state already manages Pages, KV, DNS, or Worker custom domains, a normal `tofu plan` refreshes those resources too. The API token must therefore be able to read existing managed resources, not only the new security resources. A narrow security-only token can validate the new resources with `-refresh=false`, but use a full infra/deploy token for normal apply runs.
 
 Use [Deployment Automation](./23-deployment-automation.md) for the GitHub Actions workflow, repository secrets, GitHub environment variables, and first deployment order.
+Use [Cloudflare Token Permissions](./24-cloudflare-token-permissions.md) for the exact full infra, deploy, and temporary recovery token permission profiles.
 
 ## Sources Checked
 

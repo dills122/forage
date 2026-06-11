@@ -130,6 +130,7 @@ Staging web should be private by default:
 - Enable `manage_staging_access`.
 - Set `staging_access_allowed_emails` to the operator/tester email addresses.
 - Cloudflare Access protects the staging web hostname before the app is reached.
+- Use `SameSite=Lax` for Access cookies so GitHub OAuth redirect chains do not lose the Access session before returning to the web app.
 - Do not put the staging API hostname behind Access initially because OAuth callbacks, cookies, and CORS are easier to validate with WAF and rate limits first.
 
 Hosted web and API domains should use WAF/rate-limit controls:
@@ -140,8 +141,8 @@ Hosted web and API domains should use WAF/rate-limit controls:
 - Use short rate-limit blocks when the Cloudflare plan does not allow managed challenges in `http_ratelimit`.
 
 Cloudflare Pages branch URLs require separate attention:
-- Add the branch hostname to `staging_access_extra_hostnames` if it should be covered by the same Access app.
-- Also verify Pages preview access settings in the Cloudflare UI because Pages preview URLs can remain reachable outside custom-domain routing.
+- Keep the staging Access app scoped to the canonical custom hostname by default.
+- Protect Pages preview URLs separately in the Cloudflare Pages UI because mixing the custom hostname and `pages.dev` branch hostname in one Access app can create confusing cross-host Access session behavior.
 
 ## Security Headers
 

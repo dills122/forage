@@ -116,6 +116,17 @@ variable "staging_access_session_duration" {
   default     = "8h"
 }
 
+variable "staging_access_same_site_cookie_attribute" {
+  description = "SameSite attribute for Cloudflare Access staging cookies. Lax avoids losing Access cookies during OAuth redirect chains."
+  type        = string
+  default     = "lax"
+
+  validation {
+    condition     = contains(["lax", "strict", "none"], var.staging_access_same_site_cookie_attribute)
+    error_message = "staging_access_same_site_cookie_attribute must be lax, strict, or none."
+  }
+}
+
 variable "security_allowed_countries" {
   description = "Country codes treated as primary expected traffic sources for hosted Forage domains."
   type        = set(string)

@@ -21,6 +21,8 @@ Configure these as repository or environment secrets:
 
 The Cloudflare API token should be scoped narrowly to the Forage account and resources needed for Worker and Pages deployment. Keep GitHub App client secrets in Cloudflare Worker secrets, not GitHub repository variables.
 
+Use [Cloudflare Token Permissions](./24-cloudflare-token-permissions.md) for the deploy token profile. The deploy token does not need the full local OpenTofu permission set unless the workflow is changed to manage infrastructure.
+
 ## GitHub Environment Variables
 
 Configure these on the `staging` and `production` GitHub environments:
