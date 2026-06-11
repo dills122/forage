@@ -11,12 +11,15 @@ This document covers the manual UI configuration needed in GitHub and Cloudflare
 - Cloudflare KV stores only small settings/preferences records.
 - Repository data stays in the browser and is not stored in Cloudflare.
 
-Replace the placeholder domains below before production:
+Current Forage domains:
 
-- Production web: `https://forage.example.com`
-- Production API: `https://api.forage.example.com`
-- Staging web: `https://forage-staging.example.com`
-- Staging API: `https://api-staging.forage.example.com`
+- Production web: `https://forage.shrimpworks.dev`
+- Production API: `https://api.forage.shrimpworks.dev`
+- Staging web: `https://forage-staging.shrimpworks.dev`
+- Staging API: `https://api-staging.forage.shrimpworks.dev`
+- Staging Pages branch URL: `https://staging.forage-web.pages.dev`
+
+If Forage moves to a different domain, update this document, OpenTofu variables, Pages variables, Worker variables, GitHub App callbacks, and hosted smoke environment variables together.
 
 ## GitHub App UI
 
@@ -25,8 +28,8 @@ Create separate GitHub Apps for production and development/staging unless there 
 Production GitHub App:
 - GitHub path: `Settings` -> `Developer settings` -> `GitHub Apps` -> `New GitHub App`
 - GitHub App name: `Forage`
-- Homepage URL: production web URL, for example `https://forage.example.com`
-- Callback URL: production Worker callback URL, for example `https://api.forage.example.com/auth/github/callback`
+- Homepage URL: `https://forage.shrimpworks.dev`
+- Callback URL: `https://api.forage.shrimpworks.dev/auth/github/callback`
 - Setup URL: leave blank for MVP
 - Webhook: disable active webhook unless a concrete webhook feature is added
 - Repository permissions: no repository permissions for MVP unless GitHub requires one for the stars endpoint
@@ -37,9 +40,9 @@ Production GitHub App:
 
 Development or staging GitHub App:
 - App name: `Forage Dev` or `Forage Staging`
-- Homepage URL: staging web URL or local web URL
+- Homepage URL: `https://forage-staging.shrimpworks.dev` for staging, or local web URL for local-only testing
 - Callback URL for local development: `http://127.0.0.1:8787/auth/github/callback`
-- Callback URL for staging: `https://api-staging.forage.example.com/auth/github/callback`
+- Callback URL for staging: `https://api-staging.forage.shrimpworks.dev/auth/github/callback`
 - Use the same permission posture as production
 
 Values to copy from the GitHub App UI:
@@ -61,14 +64,14 @@ Create the web app in Cloudflare Pages:
 - Node version: `22`
 
 Production environment variable:
-- `PUBLIC_WORKER_ORIGIN=https://api.forage.example.com`
+- `PUBLIC_WORKER_ORIGIN=https://api.forage.shrimpworks.dev`
 
 Staging or preview environment variable:
-- `PUBLIC_WORKER_ORIGIN=https://api-staging.forage.example.com`
+- `PUBLIC_WORKER_ORIGIN=https://api-staging.forage.shrimpworks.dev`
 
 Custom domains:
-- Add the production web hostname, for example `forage.example.com`
-- Add the staging web hostname if using a long-lived staging environment
+- Add the production web hostname: `forage.shrimpworks.dev`
+- Add the staging web hostname: `forage-staging.shrimpworks.dev`
 - Confirm HTTPS is active before relying on HSTS
 
 Important:
@@ -82,20 +85,20 @@ The Worker can be deployed from CI or locally with Wrangler, but the Cloudflare 
 
 Worker project:
 - Worker name: `forage-worker`
-- Production route or custom domain: `https://api.forage.example.com`
-- Staging route or custom domain: `https://api-staging.forage.example.com`
+- Production route or custom domain: `https://api.forage.shrimpworks.dev`
+- Staging route or custom domain: `https://api-staging.forage.shrimpworks.dev`
 
 Production Worker variables:
 - `ENVIRONMENT=production`
 - `GITHUB_API_VERSION=2022-11-28`
-- `GITHUB_REDIRECT_URI=https://api.forage.example.com/auth/github/callback`
-- `WEB_ORIGIN=https://forage.example.com`
+- `GITHUB_REDIRECT_URI=https://api.forage.shrimpworks.dev/auth/github/callback`
+- `WEB_ORIGIN=https://forage.shrimpworks.dev`
 
 Staging Worker variables:
 - `ENVIRONMENT=staging`
 - `GITHUB_API_VERSION=2022-11-28`
-- `GITHUB_REDIRECT_URI=https://api-staging.forage.example.com/auth/github/callback`
-- `WEB_ORIGIN=https://forage-staging.example.com`
+- `GITHUB_REDIRECT_URI=https://api-staging.forage.shrimpworks.dev/auth/github/callback`
+- `WEB_ORIGIN=https://forage-staging.shrimpworks.dev`
 
 Production Worker secrets:
 - `GITHUB_CLIENT_ID`
@@ -158,10 +161,10 @@ If using the same token for the full OpenTofu root, include read/write permissio
 Use [Cloudflare Token Permissions](./24-cloudflare-token-permissions.md) for the full local infra, deploy workflow, and temporary recovery token permission matrix.
 
 Recommended staging posture:
-- Protect `forage-staging.example.com` with Cloudflare Access.
+- Protect `forage-staging.shrimpworks.dev` with Cloudflare Access.
 - Allow only explicit tester email addresses.
 - Keep Access cookies at `SameSite=Lax` so OAuth callback redirects can return to staging without requiring a hard refresh.
-- Do not put `api-staging.forage.example.com` behind Access initially.
+- Do not put `api-staging.forage.shrimpworks.dev` behind Access initially.
 - Use WAF and rate limiting for the API hostname so GitHub OAuth callbacks and credentialed CORS remain straightforward to test.
 
 Recommended production posture:
@@ -205,8 +208,8 @@ Use GitHub environments named `staging` and `production`. Production should requ
 Run the automated hosted smoke check:
 
 ```sh
-FORAGE_WEB_ORIGIN=https://forage.example.com \
-FORAGE_WORKER_ORIGIN=https://api.forage.example.com \
+FORAGE_WEB_ORIGIN=https://forage.shrimpworks.dev \
+FORAGE_WORKER_ORIGIN=https://api.forage.shrimpworks.dev \
 pnpm smoke:hosted
 ```
 
@@ -223,11 +226,11 @@ pnpm smoke:hosted
 This script verifies Worker health, CORS, unauthenticated session shape, GitHub OAuth start redirect/PKCE setup, preflight headers, and either public Pages HTML/security headers or Cloudflare Access protection depending on `FORAGE_WEB_SMOKE_MODE`.
 
 Verify Worker health:
-- `GET https://api.forage.example.com/api/health`
+- `GET https://api.forage.shrimpworks.dev/api/health`
 - Expected: JSON with `ok: true` and `privacy_boundary: "no repository data stored server-side"`
 
 Verify Pages:
-- Open `https://forage.example.com`
+- Open `https://forage.shrimpworks.dev`
 - Confirm the app loads
 - Confirm browser devtools show CSP applied
 - Confirm no blocked app scripts from the expected Forage assets

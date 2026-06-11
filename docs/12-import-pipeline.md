@@ -12,13 +12,13 @@ Each import is recorded as an import event. Repository data from that event is s
 Initial source:
 GitHub REST endpoint for repositories starred by the authenticated user.
 
-Important API behavior to verify:
-- Pagination with up to 100 records per page
-- Rate limits and secondary rate limits
-- Starred timestamp support
-- Whether all required repository fields are present in the starred list response
-- Whether additional repository detail calls are needed
-- Whether private starred repositories appear with the selected authorization model
+Known API behavior:
+- The current MVP import uses the GitHub REST starred repositories endpoint through the Worker GitHub API proxy.
+- Pagination uses up to 100 records per page.
+- Starred timestamp support is available and preserved as `starred_at`.
+- The starred list response has been sufficient for the current repository model, category matching, scoring, dashboard, and export paths.
+- Per-repository detail calls are avoided for MVP to reduce latency and rate-limit pressure.
+- Rate limits and secondary rate limits still need real hosted testing across more accounts.
 
 Import stages:
 - Start authenticated import
@@ -56,8 +56,8 @@ Rate-limit posture:
 - Keep refresh user-initiated at first, then consider scheduled/background refresh only after measuring API behavior.
 
 Open implementation decisions:
-- REST vs GraphQL after the initial spike
 - Full reimport is the MVP refresh model; completed imports reconcile local data to remove repositories that are no longer starred.
 - Whether to keep previous analysis when metadata changes
 - Partial import recovery format
 - Import metadata stored per run
+- Whether GraphQL is worth revisiting for future richer metadata after MVP

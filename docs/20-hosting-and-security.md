@@ -10,8 +10,14 @@ Use two Cloudflare properties:
 - `apps/web`: Cloudflare Pages static Astro deployment.
 - `apps/worker`: Cloudflare Worker API for GitHub auth, session, settings, and GitHub API proxying.
 
-The web app should be served from the product hostname, for example `https://forage.example.com`.
-The Worker should be served from a separate API hostname, for example `https://api.forage.example.com`.
+The web app should be served from the product hostname.
+The Worker should be served from a separate API hostname.
+
+Current hostnames:
+- Staging web: `https://forage-staging.shrimpworks.dev`
+- Staging API: `https://api-staging.forage.shrimpworks.dev`
+- Production web: `https://forage.shrimpworks.dev`
+- Production API: `https://api.forage.shrimpworks.dev`
 
 Reasons:
 - The Astro app is static and local-first, so Pages is the simplest hosting boundary.
@@ -44,12 +50,12 @@ Already implemented:
 - Initial OpenTofu scaffold for Cloudflare Pages, KV, domains, and environment output wiring.
 - OpenTofu-managed security controls for WAF geo challenges, API/auth rate limits, and optional staging Access allowlist.
 
-Not production-ready yet:
-- Production `SETTINGS_KV` namespace IDs are not configured in `wrangler.toml`.
-- Pages preview deployment CORS behavior is not finalized.
-- Production Cloudflare resource names and custom domains are not finalized.
-- Production GitHub App callback URLs are still placeholders.
-- OpenTofu has not been applied against the real Cloudflare account yet.
+Remaining before production launch:
+- Production GitHub App settings and callback URLs need final verification against the production Worker.
+- Production Worker secrets and bindings need final verification after deploy.
+- Production hosted smoke needs to pass in public mode.
+- Pages preview access posture needs a final decision if preview URLs will be shared with testers.
+- Staging Access, WAF, and rate-limit rules should be rechecked after any Cloudflare Access policy change.
 
 ## Production Storage Decision
 
@@ -74,7 +80,7 @@ Use GitHub App user authorization through the web application flow.
 
 Production GitHub App settings:
 - Homepage URL: production web origin.
-- Callback URL: production Worker callback URL, for example `https://api.forage.example.com/auth/github/callback`.
+- Callback URL: production Worker callback URL, `https://api.forage.shrimpworks.dev/auth/github/callback`.
 - Add staging callback URL if a separate staging Worker is used.
 - Add local callback URL only for the development GitHub App, not the production app.
 - Repository permissions: none unless future features require installation access.
@@ -102,14 +108,14 @@ Pages production config:
 - Build output directory: `apps/web/dist`
 - Production branch: `main`
 - Node version: `22`
-- Environment variable: `PUBLIC_WORKER_ORIGIN=https://api.forage.example.com`
+- Environment variable: `PUBLIC_WORKER_ORIGIN=https://api.forage.shrimpworks.dev`
 
 Worker production config:
 - Deploy command from `apps/worker`: `pnpm exec wrangler deploy --env production`
 - Non-secret vars:
   - `GITHUB_API_VERSION=2022-11-28`
-  - `GITHUB_REDIRECT_URI=https://api.forage.example.com/auth/github/callback`
-  - `WEB_ORIGIN=https://forage.example.com`
+  - `GITHUB_REDIRECT_URI=https://api.forage.shrimpworks.dev/auth/github/callback`
+  - `WEB_ORIGIN=https://forage.shrimpworks.dev`
 - Secrets:
   - `GITHUB_CLIENT_ID`
   - `GITHUB_CLIENT_SECRET`

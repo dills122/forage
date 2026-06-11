@@ -32,22 +32,27 @@ Insight Panels
 Exports
 - JSON
 - CSV
-- Markdown
-- HTML
+
+Current implemented states:
+- Authenticated and disconnected sessions
+- Local library owner messaging
+- Initial loading/hydration
+- Import progress
+- Import cancellation
+- Rate-limit terminal state
+- No matching results
+- Local data reset confirmation
+- JSON and CSV export actions
 
 Future:
-More guided exploration experiences.
+More guided exploration experiences, Markdown export, and HTML report export.
 
 Deferred but required UX states:
 - Empty state
 - GitHub auth failure
-- Import progress
-- Import cancellation
 - Rate limit warning
 - Partial import recovery
-- No matching results
 - Export success and failure
 - Offline or stale data state
-- Local data reset confirmation
 
 MVP UX can stay utilitarian at first, but these states should exist before a public release.

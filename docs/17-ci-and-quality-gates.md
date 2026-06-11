@@ -47,7 +47,7 @@ Current Worker API contract coverage:
 
 Hosted smoke command:
 - Script: `scripts/check-hosted-smoke.mjs`
-- Command: `FORAGE_WEB_ORIGIN=https://forage.example.com FORAGE_WORKER_ORIGIN=https://api.forage.example.com pnpm smoke:hosted`
+- Command: `FORAGE_WEB_ORIGIN=https://forage.shrimpworks.dev FORAGE_WORKER_ORIGIN=https://api.forage.shrimpworks.dev pnpm smoke:hosted`
 - Purpose: verify deployed Worker health, Worker CORS/preflight, unauthenticated session shape, OAuth start redirect/PKCE setup, Pages headers, CSP Worker origin, and basic rendered app HTML
 - Staging can use `FORAGE_WEB_SMOKE_MODE=access-protected` when the web hostname is behind Cloudflare Access.
 - This is not part of the default CI gate because it requires live hosted domains.
